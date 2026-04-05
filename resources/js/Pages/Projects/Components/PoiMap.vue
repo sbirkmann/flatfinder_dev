@@ -252,7 +252,7 @@ const pointInPolygon = (point, vs) => {
 
 // Evaluate if a POI [lat, lon] is inside ANY of the currently active isochrones
 const isPoiInActiveIsochrones = (lat, lon) => {
-    if (activeIsochrones.value.length === 0) return true; // If no isochrone is checked, show all!
+    if (activeIsochrones.value.length === 0) return false; // If no isochrone is checked, show none!
 
     const point = [lon, lat]; // GeoJSON uses lon, lat
     
