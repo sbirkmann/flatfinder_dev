@@ -285,15 +285,27 @@ onMounted(() => {
     // --- Lazy Image Preloading for 3D Views ---
     const preloadUrls = new Set();
     if (props.project?.views) {
+        // Begin with the default view
+        const defaultView = props.project.views.find(v => v.is_default) || props.project.views[0];
+        
+        const extractFrameMedia = (frame) => {
+            frame.media?.forEach(m => {
+                // Must be an image and match the collections used in ThreeDFinder
+                if (m.mime_type && m.mime_type.startsWith('image/')) {
+                    if (m.collection_name === 'default' || m.collection_name.startsWith('layer_')) {
+                        preloadUrls.add(m.original_url);
+                    }
+                }
+            });
+        };
+
+        if (defaultView?.frames) {
+            defaultView.frames.forEach(extractFrameMedia);
+        }
         props.project.views.forEach(view => {
-            view.frames?.forEach(frame => {
-                const bg = frame.media?.find(m => m.collection_name === 'background');
-                if (bg) preloadUrls.add(bg.original_url);
-            });
-            view.layers?.forEach(layer => {
-                const img = layer.media?.find(m => m.collection_name === 'layer_image');
-                if (img) preloadUrls.add(img.original_url);
-            });
+            if (view.id !== defaultView?.id) {
+                view.frames?.forEach(extractFrameMedia);
+            }
         });
     }
 

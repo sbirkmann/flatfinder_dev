@@ -28,14 +28,17 @@
                     :class="{ 'scale-105 blur-[2px] opacity-90 brightness-110': isAutoPlaying  }"
                  />
                  
-                <!-- Traditional image render -->
-                <img v-else
-                     :src="activeImageUrl" 
-                     class="w-full h-full pointer-events-none transition-[filter,transform] duration-75 ease-in-out" 
-                     :class="{ 'scale-105 blur-[2px] opacity-90 brightness-110': isAutoPlaying  }"
-                     :style="[dynamicImgStyle, {objectFit: 'fill'}]"
-                     @load="onImgLoad" 
-                     alt="3D Frame" />
+                <!-- Traditional image render (Buffered with v-show for flicker-free animation) -->
+                <template v-else>
+                    <img v-for="frame in activeViewFrames" :key="'img_' + frame.id"
+                         v-show="activeFrame?.id === frame.id"
+                         :src="getFrameImageUrl(frame)" 
+                         class="w-full h-full pointer-events-none transition-[filter,transform] duration-75 ease-in-out absolute inset-0" 
+                         :class="{ 'scale-105 blur-[2px] opacity-90 brightness-110': isAutoPlaying  }"
+                         :style="[dynamicImgStyle, {objectFit: 'fill'}]"
+                         @load="activeFrame?.id === frame.id ? onImgLoad($event) : null" 
+                         alt="3D Frame" />
+                </template>
             </template>
 
             <!-- Sun Flare Layer -->
@@ -1462,15 +1465,16 @@ const isDragging = ref(false);
 const dragStart = { x: 0, y: 0 };
 const currentTranslate = { x: 0, y: 0 };
 
-const activeImageUrl = computed(() => {
-    if (!activeFrame.value) return null;
+const getFrameImageUrl = (frame) => {
+    if (!frame) return null;
     const expectedCollection = activeLayerId.value ? `layer_${activeLayerId.value}` : 'default';
-    let media = activeFrame.value.media?.find(m => m.collection_name === expectedCollection);
-    if (!media) media = activeFrame.value.media?.find(m => m.collection_name === 'default');
-    
-    if (!media) return null;
-    
-    return media.original_url;
+    let media = frame.media?.find(m => m.collection_name === expectedCollection);
+    if (!media) media = frame.media?.find(m => m.collection_name === 'default');
+    return media ? media.original_url : null;
+};
+
+const activeImageUrl = computed(() => {
+    return getFrameImageUrl(activeFrame.value);
 });
 
 const maxTranslate = computed(() => {

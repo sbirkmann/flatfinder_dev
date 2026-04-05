@@ -112,22 +112,57 @@ const fragmentShader = `
 `;
 
 let resizeObserver = null;
+let currentLoadId = 0;
+
+const loadTextures = () => {
+  if (!props.imageUrl || !props.depthMapUrl) return;
+  const loadId = ++currentLoadId;
+  const loader = new THREE.TextureLoader();
+  Promise.all([
+    new Promise(res => loader.load(props.imageUrl, res)),
+    new Promise(res => loader.load(props.depthMapUrl, res))
+  ]).then(([colorTex, depthTex]) => {
+    if (loadId !== currentLoadId) return; // abort stale load
+    colorTex.generateMipmaps = false;
+    colorTex.minFilter = THREE.LinearFilter;
+    depthTex.generateMipmaps = false;
+    depthTex.minFilter = THREE.LinearFilter;
+
+    if (!material.value) {
+      material.value = new THREE.ShaderMaterial({
+        uniforms: {
+          tDiffuse: { value: colorTex },
+          tDepth: { value: depthTex },
+          uSunPosition: { value: new THREE.Vector3(0, 0, 1) },
+          uIntensity: { value: props.intensity }
+        },
+        vertexShader,
+        fragmentShader,
+        transparent: true
+      });
+
+      const geometry = new THREE.PlaneGeometry(2, 2);
+      const mesh = new THREE.Mesh(geometry, material.value);
+      scene.value.add(mesh);
+    } else {
+      if (material.value.uniforms.tDiffuse.value) material.value.uniforms.tDiffuse.value.dispose();
+      if (material.value.uniforms.tDepth.value) material.value.uniforms.tDepth.value.dispose();
+      material.value.uniforms.tDiffuse.value = colorTex;
+      material.value.uniforms.tDepth.value = depthTex;
+    }
+
+    updateSunPosition();
+    renderFn();
+  }).catch(e => {
+    console.error('ShadowRenderer Error Loading Textures:', e);
+  });
+};
 
 const initThree = () => {
-  if (!container.value) return;
-
-  // Cleanup old instances
-  if (renderer.value) {
-    renderer.value.dispose();
-    if (renderer.value.domElement && renderer.value.domElement.parentNode === container.value) {
-        container.value.removeChild(renderer.value.domElement);
-    }
-  }
+  if (!container.value || renderer.value) return;
 
   scene.value = new THREE.Scene();
-  
   camera.value = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-  
   renderer.value = new THREE.WebGLRenderer({ alpha: true, antialias: true });
   renderer.value.setPixelRatio(window.devicePixelRatio);
   
@@ -137,9 +172,6 @@ const initThree = () => {
     const height = container.value.clientHeight;
     if (width > 0 && height > 0) {
         renderer.value.setSize(width, height);
-        // Update projection if orthographic
-        const aspect = width / height;
-        // Keep plane filling the viewport: simply 2x2 in NDC
         renderFn();
     }
   };
@@ -147,63 +179,24 @@ const initThree = () => {
   updateSize();
   container.value.appendChild(renderer.value.domElement);
 
-  const loader = new THREE.TextureLoader();
-  
-  // Load textures
-  Promise.all([
-    new Promise(res => loader.load(props.imageUrl, res)),
-    new Promise(res => loader.load(props.depthMapUrl, res))
-  ]).then(([colorTex, depthTex]) => {
-    colorTex.generateMipmaps = false;
-    colorTex.minFilter = THREE.LinearFilter;
-    depthTex.generateMipmaps = false;
-    depthTex.minFilter = THREE.LinearFilter;
-    
-    material.value = new THREE.ShaderMaterial({
-      uniforms: {
-        tDiffuse: { value: colorTex },
-        tDepth: { value: depthTex },
-        uSunPosition: { value: new THREE.Vector3(0, 0, 1) },
-        uIntensity: { value: props.intensity }
-      },
-      vertexShader,
-      fragmentShader,
-      transparent: true
-    });
-
-    const geometry = new THREE.PlaneGeometry(2, 2);
-    const mesh = new THREE.Mesh(geometry, material.value);
-    scene.value.add(mesh);
-    
-    updateSunPosition();
-    renderFn();
-  }).catch(e => {
-    console.error('ShadowRenderer Error Loading Textures:', e);
-  });
-
-  // Setup ResizeObserver explicitly for this container instead of just window resize
   if (resizeObserver) resizeObserver.disconnect();
   resizeObserver = new ResizeObserver(() => {
     updateSize();
   });
   resizeObserver.observe(container.value);
+  
+  loadTextures();
 };
 
 const updateSunPosition = () => {
   if (!material.value) return;
-  // Convert azimuth and altitude to 3D vector
   const radAux = Math.PI / 180;
-  // Camera looks at -Z. Ground is XZ plane. Y is up.
-  // We want coordinates relative to screen, where +X is right, +Y is up, +Z is towards viewer.
-  
-  // Convert Azimuth to a cartesian setup
-  // Azimuth 0 (diff = 0) -> looking into the screen (+Z away from viewer)
   const az = props.sunAzimuth * radAux;
   const alt = props.sunAltitude * radAux;
   
   const x = Math.sin(az) * Math.cos(alt);
   const y = Math.sin(alt);
-  const z = -Math.cos(az) * Math.cos(alt); // Sun in front of camera (diff 0) means physical light comes from negative Z (into the screen)
+  const z = -Math.cos(az) * Math.cos(alt);
 
   material.value.uniforms.uSunPosition.value.set(x, y, z);
   material.value.uniforms.uIntensity.value = props.intensity;
@@ -221,7 +214,7 @@ watch([() => props.sunAzimuth, () => props.sunAltitude, () => props.intensity], 
 });
 
 watch([() => props.imageUrl, () => props.depthMapUrl], () => {
-  initThree();
+  loadTextures();
 });
 
 onMounted(() => {
