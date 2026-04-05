@@ -263,10 +263,19 @@ const isPoiInActiveIsochrones = (lat, lon) => {
         const features = isoData.geojson.features || [];
         for (const feature of features) {
             if (feature.geometry && feature.geometry.coordinates) {
-                // GeoJSON coordinates structure for Polygon: [[[lon, lat], [lon, lat], ...]]
-                const polygonRings = feature.geometry.coordinates;
-                for (const ring of polygonRings) {
-                    if (pointInPolygon(point, ring)) {
+                let polygons = [];
+                if (feature.geometry.type === 'Polygon') {
+                    polygons = [feature.geometry.coordinates]; // wrap in array to make it uniform with MultiPolygon
+                } else if (feature.geometry.type === 'MultiPolygon') {
+                    polygons = feature.geometry.coordinates;
+                } else {
+                    continue; // fallback
+                }
+
+                for (const polygon of polygons) {
+                    // Each polygon is an array of rings, where the first ring is the exterior boundary
+                    const exteriorRing = polygon[0];
+                    if (exteriorRing && pointInPolygon(point, exteriorRing)) {
                         return true; // Found in at least one active isochrone
                     }
                 }

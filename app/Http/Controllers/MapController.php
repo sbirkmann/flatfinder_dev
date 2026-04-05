@@ -274,7 +274,7 @@ class MapController extends Controller
                 }
             }
             if ($maxRad == 0)
-                $maxRad = 2000; // fallback
+                $maxRad = 5000; // fallback
             if ($maxRad > 10000)
                 $maxRad = 10000; // Cap at 10km instead of 2km to actually allow driving POIs!
 
