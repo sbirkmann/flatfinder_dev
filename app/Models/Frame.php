@@ -32,6 +32,7 @@ class Frame extends Model implements HasMedia
 
     protected $casts = [
         'polygons' => 'array',
+        'points' => 'array',
         'is_stop_frame' => 'boolean',
         'is_north' => 'boolean',
     ];

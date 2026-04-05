@@ -2079,6 +2079,11 @@ const toggleNorth = () => {
 
 const savePolygonsToFrame = () => {
     if(!activeFrame.value) return;
+
+    // Optimistically update the Inertia model directly so returning to the frame retains data
+    activeFrame.value.polygons = JSON.parse(JSON.stringify(framePolygons.value));
+    activeFrame.value.points = JSON.parse(JSON.stringify(framePoints.value));
+
     window.axios.post(`/projects/${props.project.id}/relation/store`, {
         model: 'Frame',
         payload: { polygons: framePolygons.value, points: framePoints.value },
