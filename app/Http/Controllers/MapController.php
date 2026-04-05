@@ -272,6 +272,7 @@ class MapController extends Controller
                 if (($settings['isochrones']['walking']['active'] ?? false)) {
                     $maxRad = max($maxRad, (($settings['isochrones']['walking']['minutes'] ?? 0) * 80)); // ~5km/h = 80m/min
                 }
+
             }
             if ($maxRad == 0)
                 $maxRad = 5000; // fallback
