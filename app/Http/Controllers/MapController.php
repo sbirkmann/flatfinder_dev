@@ -158,6 +158,7 @@ class MapController extends Controller
         if ($data && !empty($settings['categories']) && (empty($data['pois']) || count($data["pois"]) == 0) && $data['addressFound']) {
             $data = null; // force reload if we have categories but no pois in cache
         }
+        $data = null;
 
         if (!$data) {
             $data = $this->fetchMapData($project, $settings);
