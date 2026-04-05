@@ -18,7 +18,7 @@ class Apartment extends Model implements HasMedia
         'project_id', 'house_id', 'floor_id', 'best_view_id', 'best_frame_id',
         'name', 'rooms', 'bathrooms', 'sqm', 'marketing_type', 'status', 'price', 'warm_rent',
         'available_from', 'outdoor_area', 'additional_costs', 'description', 'virtual_tour_url', 'external_contact_url',
-        'custom_buttons', 'external_property_id'
+        'custom_buttons', 'external_property_id', 'configurator_id'
     ];
 
     protected $casts = [
@@ -65,6 +65,11 @@ class Apartment extends Model implements HasMedia
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);
+    }
+
+    public function configurator(): BelongsTo
+    {
+        return $this->belongsTo(ApartmentConfigurator::class, 'configurator_id');
     }
 
     public function house(): BelongsTo

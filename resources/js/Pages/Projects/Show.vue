@@ -11,6 +11,7 @@ import { QuillEditor } from '@vueup/vue-quill';
 import '@vueup/vue-quill/dist/vue-quill.snow.css';
 import ProjectStatistics from './Components/ProjectStatistics.vue';
 import VirtualToursTab from './Components/VirtualToursTab.vue';
+import ConfiguratorManager from './Components/ConfiguratorManager.vue';
 import draggable from 'vuedraggable';
 import { pipeline, env } from '@huggingface/transformers';
 import {
@@ -1375,6 +1376,9 @@ const startOptimization = async () => {
                         <button @click="activeTab = 'autotour'" :class="[activeTab === 'autotour' ? 'bg-brand-50 text-brand-700 font-bold' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50', 'px-4 py-3 rounded-md text-sm transition font-medium flex items-center gap-2 whitespace-nowrap']">
                             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"/></svg> Auto-Tour
                         </button>
+                        <button @click="activeTab = 'configurator'" :class="[activeTab === 'configurator' ? 'bg-brand-50 text-brand-700 font-bold' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50', 'px-4 py-3 rounded-md text-sm transition font-medium flex items-center gap-2 whitespace-nowrap']">
+                            <SparklesIcon class="w-5 h-5" /> 3D Konfigurator
+                        </button>
                         <button @click="activeTab = 'team'" :class="[activeTab === 'team' ? 'bg-brand-50 text-brand-700 font-bold' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50', 'px-4 py-3 rounded-md text-sm transition font-medium flex items-center gap-2 whitespace-nowrap']">
                             <UserGroupIcon class="w-5 h-5" /> Team-Zugriff
                         </button>
@@ -1388,6 +1392,44 @@ const startOptimization = async () => {
                             <ArrowDownTrayIcon class="w-5 h-5" /> Exposé-Generator
                         </button>
                     </nav>
+                </div>
+
+                <div v-if="activeTab === 'configurator'" class="bg-white shadow-sm sm:rounded-b-lg p-6 mb-6">
+                    <ConfiguratorManager :project="project" />
+                </div>
+
+                <div v-if="activeTab === 'pdf'" class="bg-white shadow-sm sm:rounded-b-lg p-6 mb-6">
+                    <h3 class="text-lg font-bold flex items-center gap-2 mb-4">
+                        <ArrowDownTrayIcon class="w-6 h-6 text-brand-500" /> Exposé-Generator
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <InputLabel value="Template-Design" />
+                            <select v-model="projectForm.pdf_settings.template" class="w-full mt-1 border-gray-300 rounded-md shadow-sm">
+                                <option value="modern">Modern (Hell & Großflächig)</option>
+                                <option value="classic">Klassisch (Detailliert)</option>
+                                <option value="minimal">Minimalistisch</option>
+                            </select>
+                        </div>
+                        <div>
+                            <InputLabel value="Footer Text" />
+                            <TextInput v-model="projectForm.pdf_settings.footer_text" type="text" class="mt-1 block w-full" placeholder="z.B. Alle Angaben ohne Gewähr." />
+                        </div>
+                        <div class="md:col-span-2 flex flex-col md:flex-row md:items-center gap-6">
+                            <label class="flex items-center gap-2">
+                                <input type="checkbox" v-model="projectForm.pdf_settings.show_features" class="border-gray-300 rounded text-brand-600"> Ausstattung pro Wohnung
+                            </label>
+                            <label class="flex items-center gap-2">
+                                <input type="checkbox" v-model="projectForm.pdf_settings.show_rooms" class="border-gray-300 rounded text-brand-600"> Raumliste (qm) anzeigen
+                            </label>
+                            <label class="flex items-center gap-2">
+                                <input type="checkbox" v-model="projectForm.pdf_settings.show_unit_table" class="border-gray-300 rounded text-brand-600"> Liste aller freien Wohnungen anhängen
+                            </label>
+                        </div>
+                        <div class="md:col-span-2 pt-4 border-t border-gray-200 text-sm text-gray-500">
+                            <strong>Hinweis:</strong> Die PDF-Generierung für einzelne Wohnungen erfolgt im Projekt-Frontend per Knopfdruck ("PDF Download"). Die Master-Einstellungen dafür können hier festgelegt werden.
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Tab: General Info & Uploads -->

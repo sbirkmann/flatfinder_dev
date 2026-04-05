@@ -10,6 +10,7 @@ const PublicHotspotViewer = defineAsyncComponent(() => import('./Components/Publ
 const DualSlider = defineAsyncComponent(() => import('@/Components/DualSlider.vue'));
 const PoiMap = defineAsyncComponent(() => import('./Components/PoiMap.vue'));
 const ApartmentCompareModal = defineAsyncComponent(() => import('./Components/ApartmentCompareModal.vue'));
+const ApartmentConfigurator = defineAsyncComponent(() => import('./Components/ApartmentConfigurator.vue'));
 const FinanceCalculator = defineAsyncComponent(() => import('./Components/FinanceCalculator.vue'));
 import DialogModal from '@/Components/DialogModal.vue';
 import TextInput from '@/Components/TextInput.vue';
@@ -38,6 +39,7 @@ const toggleImmersiveMode = () => {
 
 const showArViewer = ref(false);
 const arModelSrc = ref('/test.glb');
+const showConfigurator = ref(false);
 
 const openArViewer = () => {
     showArViewer.value = true;
@@ -1526,6 +1528,34 @@ const sqmModel = computed({
         </transition>
     </Teleport>
 
+    <!-- Apartment Configurator Overlay -->
+    <Teleport to="body">
+        <transition name="fade">
+            <div v-if="showConfigurator && activeApartment" class="fixed inset-0 z-[200] bg-white flex flex-col">
+                <div class="h-16 border-b flex items-center justify-between px-6 bg-white shrink-0 shadow-sm">
+                    <h2 class="font-bold text-lg flex items-center gap-2">
+                        <svg class="w-5 h-5 text-brand-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2-1m2 1l-2 1m2-1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5"/></svg>
+                        3D Konfigurator <span class="text-gray-400 font-normal">| {{ activeApartment.name }}</span>
+                    </h2>
+                    <button @click="showConfigurator = false" class="w-10 h-10 rounded-full hover:bg-gray-100 flex items-center justify-center transition focus:outline-none">
+                        <svg class="w-6 h-6 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                </div>
+                <div class="flex-1 overflow-hidden relative">
+                    <ApartmentConfigurator 
+                        :configurator="project.configurators.find(c => c.id === activeApartment.configurator_id)" 
+                        :apartmentId="activeApartment.id"
+                        @open-inquiry="(e) => { 
+                            showConfigurator = false; 
+                            openContactForm(); 
+                            contactForm.fields['konfiguration'] = e.human_readable; 
+                        }" 
+                        @download-pdf="() => {}" />
+                </div>
+            </div>
+        </transition>
+    </Teleport>
+
 
     <div class="h-screen w-full flex bg-white overflow-hidden font-sans relative">
         
@@ -2095,6 +2125,19 @@ const sqmModel = computed({
                             </div>
                             <div class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center group-hover:scale-110 transition shrink-0">
                                 <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9" /></svg>
+                            </div>
+                        </div>
+
+                        <!-- 3D Wohnungskonfigurator -->
+                        <div v-if="project.configurators?.find(c => c.id === activeApartment.configurator_id)" 
+                             class="bg-gradient-to-br from-[#ab715c] to-[#8d5d4d] rounded-[16px] p-5 shadow-[0_4px_20px_rgba(171,113,92,0.3)] text-white flex items-center justify-between cursor-pointer group hover:from-[#8d5d4d] hover:to-[#7a5042] transition-all" 
+                             @click="showConfigurator = true">
+                            <div>
+                                <h4 class="text-[14px] font-black tracking-widest uppercase mb-1">3D Konfigurator</h4>
+                                <p class="text-[11px] text-white/90 font-medium">Böden und Materialien selbst wählen</p>
+                            </div>
+                            <div class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center group-hover:scale-110 transition shrink-0">
+                                <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2-1m2 1l-2 1m2-1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5" /></svg>
                             </div>
                         </div>
 

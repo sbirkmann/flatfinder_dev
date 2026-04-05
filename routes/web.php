@@ -19,6 +19,7 @@ use App\Http\Controllers\ExportController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\ProjectDuplicateController;
+use App\Http\Controllers\ConfiguratorController;
 
 Route::get('/p/{project}', [ProjectController::class, 'publicShow'])->name('projects.public');
 Route::post('/p/{project}/inquire', [InquiryController::class, 'storePublic'])->name('projects.public.inquire');
@@ -57,6 +58,21 @@ Route::middleware([
     Route::put('sliders/{slider}', [SliderController::class, 'update'])->name('sliders.update');
     Route::delete('sliders/{slider}', [SliderController::class, 'destroy'])->name('sliders.destroy');
     Route::post('projects/{project}/sliders/{slider}/reorder-slides', [SliderController::class, 'reorderSlides'])->name('sliders.reorder-slides');
+
+    // Wohnungskonfigurator
+    Route::post('projects/{project}/configurators', [ConfiguratorController::class, 'store'])->name('configurators.store');
+    Route::put('projects/{project}/configurators/{configurator}', [ConfiguratorController::class, 'update'])->name('configurators.update');
+    Route::delete('projects/{project}/configurators/{configurator}', [ConfiguratorController::class, 'destroy'])->name('configurators.destroy');
+    Route::post('projects/{project}/configurators/{configurator}/rooms', [ConfiguratorController::class, 'storeRoom'])->name('configurators.rooms.store');
+    Route::post('projects/{project}/configurators/rooms/{room}', [ConfiguratorController::class, 'updateRoom'])->name('configurators.rooms.update');
+    Route::delete('projects/{project}/configurators/rooms/{room}', [ConfiguratorController::class, 'destroyRoom'])->name('configurators.rooms.destroy');
+    Route::post('projects/{project}/configurators/rooms/{room}/categories', [ConfiguratorController::class, 'storeCategory'])->name('configurators.categories.store');
+    Route::put('projects/{project}/configurators/categories/{category}', [ConfiguratorController::class, 'updateCategory'])->name('configurators.categories.update');
+    Route::delete('projects/{project}/configurators/categories/{category}', [ConfiguratorController::class, 'destroyCategory'])->name('configurators.categories.destroy');
+    Route::post('projects/{project}/configurators/categories/{category}/options', [ConfiguratorController::class, 'storeOption'])->name('configurators.options.store');
+    Route::post('projects/{project}/configurators/options/{option}', [ConfiguratorController::class, 'updateOption'])->name('configurators.options.update');
+    Route::delete('projects/{project}/configurators/options/{option}', [ConfiguratorController::class, 'destroyOption'])->name('configurators.options.destroy');
+
 
     Route::post('projects/{project}/virtual-tours', [\App\Http\Controllers\VirtualTourController::class, 'store'])->name('virtual_tours.store');
     Route::put('virtual-tours/{virtualTour}', [\App\Http\Controllers\VirtualTourController::class, 'update'])->name('virtual_tours.update');

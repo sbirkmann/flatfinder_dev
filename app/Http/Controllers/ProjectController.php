@@ -108,7 +108,9 @@ class ProjectController extends Controller
             'contacts.media',
             'media',
             'virtualTours.media',
-            'virtualTours.points.media'
+            'virtualTours.points.media',
+            'configurators.rooms.media',
+            'configurators.rooms.categories.options.media'
         ]);
 
         $teamId = $project->team_id;
@@ -158,7 +160,9 @@ class ProjectController extends Controller
             'contacts.media',
             'media',
             'virtualTours.media',
-            'virtualTours.points.media'
+            'virtualTours.points.media',
+            'configurators.rooms.media',
+            'configurators.rooms.categories.options.media'
         ]);
 
         // Build OpenGraph meta data for social sharing
