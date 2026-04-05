@@ -451,8 +451,13 @@ onMounted(async () => {
                 const cats = new Set(allPois.value.map(p => p.category));
                 availableCategories.value = Array.from(cats).sort();
                 
-                // Activate all categories by default
-                activeCategories.value = [...availableCategories.value];
+                // Activate categories based on default_categories from settings
+                if (data.settings && data.settings.default_categories) {
+                    activeCategories.value = availableCategories.value.filter(cat => data.settings.default_categories.includes(cat));
+                } else {
+                    // Activate all categories by default if no setting is provided
+                    activeCategories.value = [...availableCategories.value];
+                }
             }
         }
 

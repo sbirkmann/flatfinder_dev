@@ -46,6 +46,26 @@ const props = defineProps({
     teamUsers: { type: Array, default: () => [] },
 });
 
+const poiCategoryDefinitions = [
+    { value: 'supermarket', label: 'Supermarkt / Einkauf', color: 'text-green-600' },
+    { value: 'school', label: 'Schule / Kita', color: 'text-blue-600' },
+    { value: 'transit', label: 'ÖPNV / Haltestelle', color: 'text-yellow-600' },
+    { value: 'restaurant', label: 'Restaurant / Gastro', color: 'text-red-600' },
+    { value: 'park', label: 'Park / Natur', color: 'text-emerald-600' },
+    { value: 'pharmacy', label: 'Arzt / Apotheke', color: 'text-purple-600' },
+    { value: 'bank', label: 'Bank / Geldautomat', color: 'text-sky-500' },
+    { value: 'fitness', label: 'Fitness / Sport', color: 'text-orange-500' },
+    { value: 'culture', label: 'Kultur / Kino', color: 'text-pink-600' },
+    { value: 'gas', label: 'Tankstelle', color: 'text-slate-500' },
+    { value: 'bakery', label: 'Bäckerei', color: 'text-orange-700' },
+    { value: 'parking', label: 'Parken', color: 'text-slate-700' },
+    { value: 'playground', label: 'Spielplatz', color: 'text-teal-500' },
+    { value: 'hospital', label: 'Krankenhaus', color: 'text-rose-600' },
+    { value: 'clothing', label: 'Bekleidung / Mode', color: 'text-amber-500' },
+    { value: 'hotel', label: 'Hotel / Unterkunft', color: 'text-violet-500' },
+    { value: 'hairdresser', label: 'Friseur / Kosmetik', color: 'text-pink-400' }
+];
+
 // --- AI Depth Map Generation ---
 const isGeneratingDepths = ref(false);
 const generationProgress = ref(0);
@@ -432,6 +452,7 @@ const projectForm = useForm({
             active: false,
             radius: 2000,
             categories: ['supermarket', 'school', 'transit'],
+            default_categories: ['supermarket', 'school', 'transit'],
             show_sun: false
         };
         if (!ps.isochrones) {
@@ -440,6 +461,9 @@ const projectForm = useForm({
                 cycling: { active: false, minutes: 15 },
                 driving: { active: false, minutes: 10 }
             };
+        }
+        if (!ps.default_categories) {
+            ps.default_categories = [...(ps.categories || [])];
         }
         if (ps.show_sun === undefined) ps.show_sun = false;
         return ps;
@@ -1698,24 +1722,22 @@ const startOptimization = async () => {
 
                                         <div>
                                             <InputLabel value="Welche Orte sollen gefunden / auf der Karte gezeigt werden?" class="mb-2" />
-                                            <div class="flex flex-wrap gap-4">
-                                                <label class="flex items-center gap-1.5 text-sm cursor-pointer bg-gray-50 px-3 py-1.5 rounded border border-gray-200"><input type="checkbox" v-model="projectForm.poi_settings.categories" value="supermarket" class="rounded border-gray-300 text-green-600" /> Supermarkt / Einkauf</label>
-                                                <label class="flex items-center gap-1.5 text-sm cursor-pointer bg-gray-50 px-3 py-1.5 rounded border border-gray-200"><input type="checkbox" v-model="projectForm.poi_settings.categories" value="school" class="rounded border-gray-300 text-blue-600" /> Schule / Kita</label>
-                                                <label class="flex items-center gap-1.5 text-sm cursor-pointer bg-gray-50 px-3 py-1.5 rounded border border-gray-200"><input type="checkbox" v-model="projectForm.poi_settings.categories" value="transit" class="rounded border-gray-300 text-yellow-600" /> ÖPNV / Haltestelle</label>
-                                                <label class="flex items-center gap-1.5 text-sm cursor-pointer bg-gray-50 px-3 py-1.5 rounded border border-gray-200"><input type="checkbox" v-model="projectForm.poi_settings.categories" value="restaurant" class="rounded border-gray-300 text-red-600" /> Restaurant / Gastro</label>
-                                                <label class="flex items-center gap-1.5 text-sm cursor-pointer bg-gray-50 px-3 py-1.5 rounded border border-gray-200"><input type="checkbox" v-model="projectForm.poi_settings.categories" value="park" class="rounded border-gray-300 text-emerald-600" /> Park / Natur</label>
-                                                <label class="flex items-center gap-1.5 text-sm cursor-pointer bg-gray-50 px-3 py-1.5 rounded border border-gray-200"><input type="checkbox" v-model="projectForm.poi_settings.categories" value="pharmacy" class="rounded border-gray-300 text-purple-600" /> Arzt / Apotheke</label>
-                                                <label class="flex items-center gap-1.5 text-sm cursor-pointer bg-gray-50 px-3 py-1.5 rounded border border-gray-200"><input type="checkbox" v-model="projectForm.poi_settings.categories" value="bank" class="rounded border-gray-300 text-sky-500" /> Bank / Geldautomat</label>
-                                                <label class="flex items-center gap-1.5 text-sm cursor-pointer bg-gray-50 px-3 py-1.5 rounded border border-gray-200"><input type="checkbox" v-model="projectForm.poi_settings.categories" value="fitness" class="rounded border-gray-300 text-orange-500" /> Fitness / Sport</label>
-                                                <label class="flex items-center gap-1.5 text-sm cursor-pointer bg-gray-50 px-3 py-1.5 rounded border border-gray-200"><input type="checkbox" v-model="projectForm.poi_settings.categories" value="culture" class="rounded border-gray-300 text-pink-600" /> Kultur / Kino</label>
-                                                <label class="flex items-center gap-1.5 text-sm cursor-pointer bg-gray-50 px-3 py-1.5 rounded border border-gray-200"><input type="checkbox" v-model="projectForm.poi_settings.categories" value="gas" class="rounded border-gray-300 text-slate-500" /> Tankstelle</label>
-                                                <label class="flex items-center gap-1.5 text-sm cursor-pointer bg-gray-50 px-3 py-1.5 rounded border border-gray-200"><input type="checkbox" v-model="projectForm.poi_settings.categories" value="bakery" class="rounded border-gray-300 text-orange-700" /> Bäckerei</label>
-                                                <label class="flex items-center gap-1.5 text-sm cursor-pointer bg-gray-50 px-3 py-1.5 rounded border border-gray-200"><input type="checkbox" v-model="projectForm.poi_settings.categories" value="parking" class="rounded border-gray-300 text-slate-700" /> Parken</label>
-                                                <label class="flex items-center gap-1.5 text-sm cursor-pointer bg-gray-50 px-3 py-1.5 rounded border border-gray-200"><input type="checkbox" v-model="projectForm.poi_settings.categories" value="playground" class="rounded border-gray-300 text-teal-500" /> Spielplatz</label>
-                                                <label class="flex items-center gap-1.5 text-sm cursor-pointer bg-gray-50 px-3 py-1.5 rounded border border-gray-200"><input type="checkbox" v-model="projectForm.poi_settings.categories" value="hospital" class="rounded border-gray-300 text-rose-600" /> Krankenhaus</label>
-                                                <label class="flex items-center gap-1.5 text-sm cursor-pointer bg-gray-50 px-3 py-1.5 rounded border border-gray-200"><input type="checkbox" v-model="projectForm.poi_settings.categories" value="clothing" class="rounded border-gray-300 text-amber-500" /> Bekleidung / Mode</label>
-                                                <label class="flex items-center gap-1.5 text-sm cursor-pointer bg-gray-50 px-3 py-1.5 rounded border border-gray-200"><input type="checkbox" v-model="projectForm.poi_settings.categories" value="hotel" class="rounded border-gray-300 text-violet-500" /> Hotel / Unterkunft</label>
-                                                <label class="flex items-center gap-1.5 text-sm cursor-pointer bg-gray-50 px-3 py-1.5 rounded border border-gray-200"><input type="checkbox" v-model="projectForm.poi_settings.categories" value="hairdresser" class="rounded border-gray-300 text-pink-400" /> Friseur / Kosmetik</label>
+                                            <div class="flex flex-wrap gap-3">
+                                                <div v-for="cat in poiCategoryDefinitions" :key="cat.value" class="bg-gray-50 p-3 rounded border border-gray-200 flex flex-col min-w-[170px] flex-1">
+                                                    <div class="text-[13px] font-bold mb-2 flex items-center gap-1.5" :class="cat.color">
+                                                        {{ cat.label }}
+                                                    </div>
+                                                    <div class="flex flex-col gap-1.5">
+                                                        <label class="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                                                            <input type="checkbox" v-model="projectForm.poi_settings.categories" :value="cat.value" class="rounded border-gray-300 w-3.5 h-3.5 text-brand-600 focus:ring-brand-500" />
+                                                            Daten abrufen
+                                                        </label>
+                                                        <label class="flex items-center gap-2 text-xs text-brand-800 cursor-pointer" :class="{'opacity-50': !projectForm.poi_settings.categories.includes(cat.value)}">
+                                                            <input type="checkbox" v-model="projectForm.poi_settings.default_categories" :value="cat.value" :disabled="!projectForm.poi_settings.categories.includes(cat.value)" class="rounded border-gray-300 w-3.5 h-3.5 text-blue-600 focus:ring-blue-500 disabled:opacity-50 disabled:bg-gray-100" />
+                                                            Im Frontend aktiv
+                                                        </label>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                         

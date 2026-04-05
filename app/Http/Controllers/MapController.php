@@ -150,7 +150,12 @@ class MapController extends Controller
             return response()->json(['lat' => null, 'lon' => null, 'addressFound' => false, 'pois' => [], 'isochrones' => []]);
         }
 
-        $settingsHash = md5(json_encode($settings) . $project->address . $project->zip . $project->city);
+        // Remove frontend UI keys that don't affect Overpass queries from cache hash
+        $cacheSettings = $settings;
+        unset($cacheSettings['default_categories']);
+        unset($cacheSettings['show_sun']);
+        
+        $settingsHash = md5(json_encode($cacheSettings) . $project->address . $project->zip . $project->city);
         $cacheKey = "project_map_data_{$project->id}_{$settingsHash}";
 
         $data = Cache::get($cacheKey);
@@ -158,7 +163,7 @@ class MapController extends Controller
         if ($data && !empty($settings['categories']) && (empty($data['pois']) || count($data["pois"]) == 0) && $data['addressFound']) {
             $data = null; // force reload if we have categories but no pois in cache
         }
-        $data = null;
+
 
         if (!$data) {
             $data = $this->fetchMapData($project, $settings);
