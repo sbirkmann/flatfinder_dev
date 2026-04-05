@@ -282,6 +282,41 @@ onMounted(() => {
         const campaign = urlParams.get('campaign') || urlParams.get('utm_campaign') || urlParams.get('src');
         initTracking(campaign);
     }
+    // --- Lazy Image Preloading for 3D Views ---
+    const preloadUrls = new Set();
+    if (props.project?.views) {
+        props.project.views.forEach(view => {
+            view.frames?.forEach(frame => {
+                const bg = frame.media?.find(m => m.collection_name === 'background');
+                if (bg) preloadUrls.add(bg.original_url);
+            });
+            view.layers?.forEach(layer => {
+                const img = layer.media?.find(m => m.collection_name === 'layer_image');
+                if (img) preloadUrls.add(img.original_url);
+            });
+        });
+    }
+
+    const urlsToLoad = Array.from(preloadUrls);
+    if (urlsToLoad.length > 0) {
+        // Run with requestIdleCallback or setTimeout to not block main thread
+        const requestIdle = window.requestIdleCallback || ((cb) => setTimeout(cb, 100));
+        let i = 0;
+        const loadNext = () => {
+            if (i >= urlsToLoad.length) return;
+            requestIdle(() => {
+                const img = new Image();
+                img.src = urlsToLoad[i];
+                img.onload = img.onerror = () => {
+                    i++;
+                    loadNext();
+                };
+            });
+        };
+        // Wait 3 seconds for initial page load to finish before mass requesting images
+        setTimeout(loadNext, 3000);
+    }
+
     initGA();
 });
 

@@ -2577,6 +2577,10 @@ const startOptimization = async () => {
                                 <InputLabel value="Name / Bezeichnung" />
                                 <TextInput v-model="modalData.name" class="mt-1 block w-full" />
                             </div>
+                            <div class="flex items-center gap-2 mt-4">
+                                <input type="checkbox" v-model="modalData.sun_simulation" id="sun_sim" class="rounded border-gray-300 text-brand-600 shadow-sm focus:ring-brand-500" />
+                                <label for="sun_sim" class="text-sm text-gray-700">Licht & Sonnenstandsimulation (3D) für diesen Layer aktivieren</label>
+                            </div>
                         </div>
                         <div class="flex gap-2 mt-6">
                             <SecondaryButton @click="closeInline">Abbrechen</SecondaryButton>

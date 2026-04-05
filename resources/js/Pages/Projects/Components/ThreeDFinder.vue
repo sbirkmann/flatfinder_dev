@@ -253,7 +253,7 @@
             </div>
 
             <!-- Sun Controls (Quick Icon Overlay) -->
-            <div class="relative" @mouseenter="isSunDropdownOpen = true" @mouseleave="isSunDropdownOpen = false">
+            <div class="relative" v-if="!activeLayer || activeLayer.sun_simulation || activeLayer.sun_simulation === undefined" @mouseenter="isSunDropdownOpen = true" @mouseleave="isSunDropdownOpen = false">
                 <button class="px-3 h-10 flex items-center justify-center bg-white/95 backdrop-blur-sm shadow-md rounded-full text-gray-700 hover:text-black hover:bg-white transition hidden sm:inline-flex" title="Sonnenstand" :class="{'text-yellow-500': showSun}">
                     <svg class="w-5 h-5 transition-transform" :class="{'scale-110 text-yellow-500': isSunDropdownOpen || showSun}" fill="currentColor" viewBox="0 0 24 24"><path d="M12 7a5 5 0 100 10 5 5 0 000-10zM2 13h2a1 1 0 100-2H2a1 1 0 100 2zm18 0h2a1 1 0 100-2h-2a1 1 0 100 2zM11 2v2a1 1 0 102 0V2a1 1 0 10-2 0zm0 18v2a1 1 0 102 0v-2a1 1 0 10-2 0zM5.99 4.58a1 1 0 111.41 1.41L6.05 7.34a1 1 0 01-1.41-1.41l1.35-1.35zm12.02 12.02a1 1 0 111.41 1.41l-1.35 1.35a1 1 0 11-1.41-1.41l1.35-1.35zM5.99 19.42l-1.35-1.35a1 1 0 111.41-1.41l1.35 1.35a1 1 0 11-1.41 1.41zm12.02-12.02l1.35-1.35a1 1 0 011.41 1.41l-1.35 1.35a1 1 0 11-1.41-1.41z"/></svg>
                 </button>
@@ -1238,6 +1238,7 @@ const activeFrame = computed(() => {
 
 const sunData = computed(() => {
     if (!showSun.value || !activeFrame.value) return null;
+    if (activeLayer.value && activeLayer.value.sun_simulation !== undefined && !activeLayer.value.sun_simulation) return null;
     
     const projectLat = 51.165691;
     const projectLon = 10.451526;

@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Layer extends Model
 {
-    protected $fillable = ['project_id', 'name', 'sort_order'];
+    protected $fillable = ['project_id', 'name', 'sort_order', 'sun_simulation'];
 
     public function project(): BelongsTo
     {
