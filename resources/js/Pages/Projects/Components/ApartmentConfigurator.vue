@@ -159,9 +159,10 @@
                     </div>
                     
                     <div class="grid grid-cols-2 gap-3">
-                        <button @click="generateSummaryPdf" class="w-full bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-semibold py-3 rounded-lg flex justify-center items-center gap-2 transition shadow-sm">
-                            <svg class="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                            Als PDF öffnen
+                        <button @click="generateSummaryPdf" :disabled="isGeneratingPdf" class="w-full bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-semibold py-3 rounded-lg flex justify-center items-center gap-2 transition shadow-sm disabled:opacity-50">
+                            <svg v-if="!isGeneratingPdf" class="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                            <svg v-else class="animate-spin h-5 w-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                            {{ isGeneratingPdf ? 'Generiere...' : 'Als PDF öffnen' }}
                         </button>
                         <button @click="submitInquiry" class="w-full bg-brand-600 hover:bg-brand-700 text-white font-semibold py-3 rounded-lg flex justify-center items-center gap-2 transition shadow-md">
                             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
@@ -188,6 +189,8 @@ const props = defineProps({
         required: false
     }
 });
+
+const isGeneratingPdf = ref(false);
 
 const emit = defineEmits(['open-inquiry', 'download-pdf']);
 
@@ -413,11 +416,34 @@ const hexToRgba = (hex) => {
     return [1,1,1,1];
 };
 
-const generateSummaryPdf = () => {
-    emit('download-pdf', {
-        selections: selections.value,
-        total_surcharge: totalSurcharge.value
-    });
+const generateSummaryPdf = async () => {
+    isGeneratingPdf.value = true;
+    try {
+        const response = await fetch(`/p/${props.configurator.project_id}/configurator/${props.apartmentId}/pdf`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+            },
+            body: JSON.stringify({
+                selections: selections.value,
+                total_surcharge: totalSurcharge.value
+            })
+        });
+
+        if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            window.open(url, '_blank');
+        } else {
+            alert("Es gab einen Fehler beim Generieren des PDFs. Bitte später erneut versuchen.");
+        }
+    } catch (error) {
+        console.error("PDF Generate Error", error);
+        alert("Es gab einen Verbindungsfehler beim Generieren des PDFs.");
+    } finally {
+        isGeneratingPdf.value = false;
+    }
 };
 
 const submitInquiry = () => {

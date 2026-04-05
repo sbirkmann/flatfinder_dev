@@ -204,6 +204,19 @@ const deleteDepthMaps = async () => {
 const activeTab = ref('general');
 const isEditingProject = ref(false);
 
+const selectedExposeApartment = ref('');
+const isGeneratingExpose = ref(false);
+
+const generateExposePdf = () => {
+    isGeneratingExpose.value = true;
+    let url = `/projects/${props.project.id}/expose/pdf`;
+    if (selectedExposeApartment.value) {
+        url += `/${selectedExposeApartment.value}`;
+    }
+    window.open(url, '_blank');
+    setTimeout(() => { isGeneratingExpose.value = false; }, 1000);
+};
+
 // Deep-link: ?apartment=ID opens the apartment editor
 onMounted(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1402,34 +1415,63 @@ const startOptimization = async () => {
                     <h3 class="text-lg font-bold flex items-center gap-2 mb-4">
                         <ArrowDownTrayIcon class="w-6 h-6 text-brand-500" /> Exposé-Generator
                     </h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8 border-b pb-8">
                         <div>
-                            <InputLabel value="Template-Design" />
-                            <select v-model="projectForm.pdf_settings.template" class="w-full mt-1 border-gray-300 rounded-md shadow-sm">
-                                <option value="modern">Modern (Hell & Großflächig)</option>
-                                <option value="classic">Klassisch (Detailliert)</option>
-                                <option value="minimal">Minimalistisch</option>
-                            </select>
+                            <h4 class="font-bold text-gray-700 mb-3">Layout & Design Einstellungen</h4>
+                            <div class="space-y-4">
+                                <div>
+                                    <InputLabel value="Template-Design" />
+                                    <select v-model="projectForm.pdf_settings.template" class="w-full mt-1 border-gray-300 rounded-md shadow-sm">
+                                        <option value="modern">Modern (Hell & Großflächig)</option>
+                                        <option value="classic">Klassisch (Detailliert)</option>
+                                        <option value="minimal">Minimalistisch</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <InputLabel value="Footer Text" />
+                                    <TextInput v-model="projectForm.pdf_settings.footer_text" type="text" class="mt-1 block w-full" placeholder="z.B. Alle Angaben ohne Gewähr." />
+                                </div>
+                            </div>
                         </div>
+                        
                         <div>
-                            <InputLabel value="Footer Text" />
-                            <TextInput v-model="projectForm.pdf_settings.footer_text" type="text" class="mt-1 block w-full" placeholder="z.B. Alle Angaben ohne Gewähr." />
-                        </div>
-                        <div class="md:col-span-2 flex flex-col md:flex-row md:items-center gap-6">
-                            <label class="flex items-center gap-2">
-                                <input type="checkbox" v-model="projectForm.pdf_settings.show_features" class="border-gray-300 rounded text-brand-600"> Ausstattung pro Wohnung
-                            </label>
-                            <label class="flex items-center gap-2">
-                                <input type="checkbox" v-model="projectForm.pdf_settings.show_rooms" class="border-gray-300 rounded text-brand-600"> Raumliste (qm) anzeigen
-                            </label>
-                            <label class="flex items-center gap-2">
-                                <input type="checkbox" v-model="projectForm.pdf_settings.show_unit_table" class="border-gray-300 rounded text-brand-600"> Liste aller freien Wohnungen anhängen
-                            </label>
-                        </div>
-                        <div class="md:col-span-2 pt-4 border-t border-gray-200 text-sm text-gray-500">
-                            <strong>Hinweis:</strong> Die PDF-Generierung für einzelne Wohnungen erfolgt im Projekt-Frontend per Knopfdruck ("PDF Download"). Die Master-Einstellungen dafür können hier festgelegt werden.
+                            <h4 class="font-bold text-gray-700 mb-3">Inhalts-Einstellungen</h4>
+                            <div class="space-y-3 pt-2">
+                                <label class="flex items-center gap-2">
+                                    <input type="checkbox" v-model="projectForm.pdf_settings.show_features" class="border-gray-300 rounded text-brand-600"> Ausstattung / Merkmale pro Wohnung
+                                </label>
+                                <label class="flex items-center gap-2">
+                                    <input type="checkbox" v-model="projectForm.pdf_settings.show_rooms" class="border-gray-300 rounded text-brand-600"> Raumliste (qm) anzeigen
+                                </label>
+                                <label class="flex items-center gap-2">
+                                    <input type="checkbox" v-model="projectForm.pdf_settings.show_unit_table" class="border-gray-300 rounded text-brand-600"> Gesamte Preisliste anhängen (nur Projekt-Exposé)
+                                </label>
+                            </div>
                         </div>
                     </div>
+
+                    <!-- PDF Generation Actions -->
+                    <div>
+                        <h4 class="font-bold text-gray-700 mb-4">Exposé PDF Live Generieren & Herunterladen</h4>
+                        <div class="bg-gray-50 border rounded-xl p-5 flex flex-col md:flex-row items-center gap-4">
+                            <div class="flex-1 w-full">
+                                <InputLabel value="Wohnung auswählen" />
+                                <select v-model="selectedExposeApartment" class="w-full mt-1 border-gray-300 rounded-md shadow-sm">
+                                    <option value="">-- Gesamtprojekt Exposé --</option>
+                                    <option v-for="apt in project.apartments" :key="apt.id" :value="apt.id">{{ apt.name }} ({{ apt.rooms }} Zi.)</option>
+                                </select>
+                            </div>
+                            <div class="flex-shrink-0 mt-4 md:mt-0 pt-0 md:pt-6">
+                                <PrimaryButton @click="generateExposePdf" :disabled="isGeneratingExpose" class="flex items-center gap-2 min-w-[200px] justify-center text-[15px]">
+                                    <ArrowDownTrayIcon class="w-5 h-5" v-if="!isGeneratingExpose" />
+                                    <svg v-else class="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                    {{ isGeneratingExpose ? 'Generiere...' : 'Exposé herunterladen' }}
+                                </PrimaryButton>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
 
                 <!-- Tab: General Info & Uploads -->

@@ -1,297 +1,225 @@
 <!DOCTYPE html>
-<html lang="de">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
-    <title>{{ $project->name }} – {{ $apartment->name }}</title>
+    <meta charset="utf-8">
+    <title>Exposé - {{ $apartment ? $apartment->name : $project->name }}</title>
     <style>
         @page { margin: 0; }
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #1a1a1a; background: #fff; font-size: 12px; line-height: 1.5; }
-
-        /* --- Cover Page --- */
-        .cover { position: relative; width: 100%; height: 100vh; overflow: hidden; page-break-after: always; }
-        .cover-bg { width: 100%; height: 100%; object-fit: cover; }
-        .cover-overlay {
-            position: absolute; bottom: 0; left: 0; right: 0;
-            background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.3) 60%, transparent 100%);
-            padding: 60px 50px 50px;
-            color: #fff;
-        }
-        .cover-logo { max-height: 40px; max-width: 180px; object-fit: contain; margin-bottom: 20px; }
-        .cover-title { font-size: 36px; font-weight: 900; letter-spacing: -1px; margin-bottom: 6px; }
-        .cover-subtitle { font-size: 16px; font-weight: 400; opacity: 0.8; margin-bottom: 4px; }
-        .cover-badge {
-            display: inline-block; background: {{ $primaryColor }}; color: #fff;
-            padding: 6px 18px; border-radius: 999px; font-weight: 800; font-size: 12px;
-            margin-top: 16px; letter-spacing: 0.5px;
-        }
-
-        /* --- Content Pages --- */
-        .page { padding: 50px; page-break-after: always; min-height: 100vh; position: relative; }
-        .page:last-child { page-break-after: auto; }
-        .page-header { border-bottom: 2px solid #eee; padding-bottom: 12px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: flex-end; }
-        .page-header h2 { font-size: 22px; font-weight: 900; color: #111; letter-spacing: -0.5px; }
-        .page-header .project-name { font-size: 10px; color: #999; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
-
-        /* --- Data Table --- */
-        .data-grid { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
-        .data-grid td { padding: 12px 16px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
-        .data-grid tr:last-child td { border-bottom: none; }
-        .data-grid .label { font-size: 11px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 0.5px; width: 40%; }
-        .data-grid .value { font-size: 14px; font-weight: 800; color: #222; }
-
-        /* --- Feature Badges --- */
-        .features { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0; }
-        .feature-badge {
-            display: inline-block; background: #f5f0ec; color: #7a5a48;
-            padding: 5px 14px; border-radius: 999px; font-size: 11px; font-weight: 700;
-            border: 1px solid #e8ddd5;
-        }
-
-        /* --- Room Table --- */
-        .room-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-        .room-table th { background: #f8f6f4; padding: 10px 14px; text-align: left; font-size: 10px; font-weight: 800; color: #666; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #e5e5e5; }
-        .room-table td { padding: 10px 14px; border-bottom: 1px solid #f0f0f0; font-size: 12px; }
-        .room-table tr:nth-child(even) { background: #fcfaf9; }
-        .room-table .total td { font-weight: 900; border-top: 2px solid #ddd; background: #f5f0ec; }
-
-        /* --- Price Highlight --- */
-        .price-box {
-            background: linear-gradient(135deg, {{ $primaryColor }}, {{ $primaryHover }});
-            color: #fff; border-radius: 12px; padding: 24px 30px; margin: 20px 0;
-            text-align: center;
-        }
-        .price-box .price-label { font-size: 11px; font-weight: 700; opacity: 0.7; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
-        .price-box .price-value { font-size: 32px; font-weight: 900; letter-spacing: -1px; }
-        .price-box .price-sub { font-size: 11px; opacity: 0.6; margin-top: 6px; }
-
-        /* --- Footer --- */
-        .page-footer {
-            position: absolute; bottom: 20px; left: 50px; right: 50px;
-            border-top: 1px solid #eee; padding-top: 10px;
-            font-size: 9px; color: #bbb; display: flex; justify-content: space-between;
-        }
-
-        /* --- Contact Box --- */
-        .contact-box { background: #f8f6f4; border: 1px solid #e8ddd5; border-radius: 12px; padding: 20px 24px; margin-top: 30px; }
-        .contact-box h4 { font-size: 13px; font-weight: 900; color: {{ $primaryColor }}; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
-        .contact-row { display: flex; gap: 12px; align-items: center; margin-bottom: 8px; }
-        .contact-row .contact-label { font-size: 10px; color: #999; font-weight: 700; text-transform: uppercase; width: 60px; }
-        .contact-row .contact-value { font-size: 12px; font-weight: 600; color: #333; }
-
-        /* --- Description --- */
-        .description { font-size: 13px; line-height: 1.8; color: #444; margin: 20px 0; }
-
-        /* --- Disclaimer --- */
-        .disclaimer { font-size: 9px; color: #bbb; line-height: 1.6; margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; }
-
-        /* Status Badge */
-        .status-badge {
-            display: inline-block; padding: 4px 14px; border-radius: 999px;
-            font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
-        }
-        .status-frei { background: #dcf0d5; color: #3f6327; }
-        .status-reserviert { background: #fff3cd; color: #856404; }
-        .status-verkauft { background: #f8d7da; color: #721c24; }
-        .status-vermietet { background: #f8d7da; color: #721c24; }
+        body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #333; margin: 0; padding: 0; font-size: 14px; background: #fff;}
+        
+        .page { padding: 40px 50px; position: relative; min-height: 100vh; page-break-after: always; box-sizing: border-box; }
+        .page-cover { padding: 0; position: relative; height: 100vh; overflow: hidden; page-break-after: always; }
+        
+        .cover-image { width: 100%; height: 60vh; object-fit: cover; background-color: #f3f4f6; }
+        .cover-content { padding: 50px; }
+        .cover-logo { max-height: 80px; margin-bottom: 20px; }
+        .cover-title { font-size: 38px; font-weight: 900; color: #111827; margin: 0 0 10px 0; }
+        .cover-subtitle { font-size: 20px; color: #ab715c; margin: 0; font-weight: normal; }
+        .cover-address { font-size: 16px; color: #6b7280; margin-top: 20px; }
+        
+        .header { border-bottom: 2px solid #ab715c; padding-bottom: 15px; margin-bottom: 30px; overflow: hidden; }
+        .header img { max-height: 40px; float: left; }
+        .header-title { float: right; font-size: 16px; font-weight: bold; color: #111827; margin-top: 10px;}
+        
+        h2 { font-size: 24px; color: #111827; border-left: 4px solid #ab715c; padding-left: 15px; margin-top: 0; margin-bottom: 20px; }
+        p { line-height: 1.6; color: #4b5563; }
+        
+        /* Key Facts Array */
+        .facts-grid { width: 100%; display: table; border-collapse: collapse; margin-bottom: 40px; }
+        .fact-box { display: table-cell; width: 25%; background: #f9fafb; border: 1px solid #e5e7eb; padding: 15px; text-align: center; }
+        .fact-label { font-size: 11px; text-transform: uppercase; color: #ab715c; font-weight: bold; letter-spacing: 1px; margin-bottom: 5px; }
+        .fact-val { font-size: 18px; font-weight: 900; color: #111827; }
+        
+        /* Layout Grid */
+        table.layout { width: 100%; border-collapse: collapse; }
+        table.layout td { vertical-align: top; width: 50%; padding-right: 20px; }
+        table.layout td:last-child { padding-right: 0; padding-left: 20px; }
+        
+        .image-preview { width: 100%; max-height: 250px; object-fit: cover; border-radius: 8px; margin-bottom: 20px; }
+        
+        /* Details Table */
+        table.data-table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+        table.data-table th, table.data-table td { padding: 12px 0; border-bottom: 1px solid #e5e7eb; text-align: left; }
+        table.data-table th { font-weight: bold; color: #6b7280; font-size: 13px; width: 40%; }
+        table.data-table td { font-weight: bold; color: #111827; font-size: 14px; }
+        
+        .footer { position: fixed; bottom: 20px; left: 50px; right: 50px; font-size: 10px; color: #9ca3af; border-top: 1px solid #e5e7eb; padding-top: 10px; text-align: center; }
     </style>
 </head>
 <body>
 
-    {{-- =================== COVER PAGE =================== --}}
-    <div class="cover">
-        @if($coverImage)
-            <img class="cover-bg" src="{{ $coverImage }}" alt="Cover" />
+    @php
+        // Try getting project image
+        $projectImage = null;
+        if(isset($project->media)) {
+            $m = $project->media->where('collection_name', 'project_image')->first();
+            if($m) $projectImage = str_replace(url('/'), public_path(''), $m->getUrl());
+        }
+        
+        // Try getting logo
+        $logo = null;
+        if(isset($project->media)) {
+            $m = $project->media->where('collection_name', 'logo')->first();
+            if($m) $logo = str_replace(url('/'), public_path(''), $m->getUrl());
+        }
+
+        // Apartment specific
+        $aptImage = null;
+        $aptFloorplan = null;
+        if($apartment && isset($apartment->media)) {
+            $m = $apartment->media->where('collection_name', 'preview_image')->first();
+            if($m) $aptImage = str_replace(url('/'), public_path(''), $m->getUrl());
+            else $aptImage = $projectImage;
+            
+            $m = $apartment->media->where('collection_name', 'floorplan_image')->first();
+            if($m) $aptFloorplan = str_replace(url('/'), public_path(''), $m->getUrl());
+        }
+    @endphp
+
+    <!-- COVER PAGE -->
+    <div class="page-cover">
+        @if($apartment && $aptImage)
+            <img src="{{ $aptImage }}" class="cover-image" alt="Titelbild">
+        @elseif($projectImage)
+            <img src="{{ $projectImage }}" class="cover-image" alt="Titelbild">
         @else
-            <div style="width:100%;height:100%;background:linear-gradient(135deg, {{ $primaryColor }}, {{ $primaryHover }});"></div>
+            <div class="cover-image"></div>
         @endif
-        <div class="cover-overlay">
+        
+        <div class="cover-content">
             @if($logo)
-                <img class="cover-logo" src="{{ $logo }}" alt="Logo" />
+                <img src="{{ $logo }}" class="cover-logo" alt="Logo">
             @endif
-            <div class="cover-title">{{ $apartment->name }}</div>
-            <div class="cover-subtitle">{{ $project->name }}</div>
-            @if($project->address || $project->city)
-                <div class="cover-subtitle">{{ $project->address }} · {{ $project->zip }} {{ $project->city }}</div>
-            @endif
-            <div class="cover-badge">
-                @if($apartment->marketing_type === 'Miete')
-                    Zur Miete
-                @else
-                    Zum Kauf
-                @endif
-                · {{ $apartment->rooms }} Zimmer · {{ number_format($apartment->sqm, 1, ',', '.') }} m²
-            </div>
+            
+            <h1 class="cover-title">{{ $apartment ? $apartment->name : $project->name }}</h1>
+            <h2 class="cover-subtitle">{{ $apartment ? 'Exposé für Ihre Traumwohnung' : 'Exposé Projektübersicht' }}</h2>
+            
+            <p class="cover-address">
+                <strong>{{ $project->name }}</strong><br>
+                {{ $project->address }}<br>
+                {{ $project->zip }} {{ $project->city }}
+            </p>
         </div>
     </div>
-
-    {{-- =================== DATA PAGE =================== --}}
+    
+    <!-- DETAILS PAGE -->
     <div class="page">
-        <div class="page-header">
-            <h2>Objektübersicht</h2>
-            <span class="project-name">{{ $project->name }}</span>
+        <div class="header">
+            @if($logo)
+                <img src="{{ $logo }}" alt="Logo">
+            @endif
+            <div class="header-title">{{ $apartment ? $apartment->name : $project->name }}</div>
         </div>
-
-        <div class="price-box">
-            <div class="price-label">
-                {{ $apartment->marketing_type === 'Miete' ? 'Bruttomiete pro Monat' : 'Kaufpreis' }}
+        
+        @if($apartment)
+            <h2>Wohnungsdetails</h2>
+            
+            <div class="facts-grid">
+                <div class="fact-box">
+                    <div class="fact-label">Fläche</div>
+                    <div class="fact-val">{{ round($apartment->sqm, 1) }} m²</div>
+                </div>
+                <div class="fact-box">
+                    <div class="fact-label">Zimmer</div>
+                    <div class="fact-val">{{ $apartment->rooms }}</div>
+                </div>
+                <div class="fact-box">
+                    <div class="fact-label">Geschoss</div>
+                    <div class="fact-val">{{ $apartment->floor_id ? ($project->floors->where('id', $apartment->floor_id)->first()->name ?? 'EG') : 'EG' }}</div>
+                </div>
+                <div class="fact-box">
+                    <div class="fact-label">Preis</div>
+                    <div class="fact-val">
+                        @if($apartment->price)
+                            {{ number_format($apartment->price, 0, ',', '.') }} {{ env('APP_CURRENCY', 'CHF') }}
+                        @else
+                            A.A.
+                        @endif
+                    </div>
+                </div>
             </div>
-            <div class="price-value">
-                @if($apartment->marketing_type === 'Miete' && $apartment->warm_rent)
-                    {{ number_format($apartment->warm_rent, 0, ',', '.') }} €
-                @elseif($apartment->price)
-                    {{ number_format($apartment->price, 0, ',', '.') }} €
-                @else
-                    auf Anfrage
-                @endif
-            </div>
-            @if($apartment->marketing_type === 'Miete' && $apartment->price)
-                <div class="price-sub">Kaltmiete: {{ number_format($apartment->price, 0, ',', '.') }} € · NK: {{ number_format($apartment->additional_costs ?? 0, 0, ',', '.') }} €</div>
-            @endif
-        </div>
+            
+            <table class="layout">
+                <tr>
+                    <td>
+                        <table class="data-table">
+                            <tr>
+                                <th>Status</th>
+                                <td>{{ $apartment->status ?? 'Verfügbar' }}</td>
+                            </tr>
+                            <tr>
+                                <th>Angebotstyp</th>
+                                <td>{{ $apartment->marketing_type ?? 'Kauf' }}</td>
+                            </tr>
+                            <tr>
+                                <th>Verfügbar ab</th>
+                                <td>{{ $apartment->available_from ?? 'Sofort' }}</td>
+                            </tr>
+                        </table>
+                        
+                        @if($settings['show_features'] ?? true)
+                            @if(isset($settings['footer_text']) && count($settings) > 0)
+                                <h3>Beschreibung</h3>
+                                <p>{{ $settings['footer_text'] ?? 'Dieses Exposé enthält grundlegende Informationen zur Immobilie.' }}</p>
+                            @endif
+                        @endif
+                    </td>
+                    <td>
+                        @if($aptFloorplan)
+                            <div style="font-weight:bold; color:#ab715c; margin-bottom: 10px; font-size:12px; text-transform:uppercase;">Grundriss</div>
+                            <img src="{{ $aptFloorplan }}" style="width:100%; border:1px solid #eee; padding:10px;">
+                        @endif
+                    </td>
+                </tr>
+            </table>
 
-        <table class="data-grid">
-            <tr>
-                <td class="label">Bezeichnung</td>
-                <td class="value">{{ $apartment->name }}</td>
-            </tr>
-            <tr>
-                <td class="label">Status</td>
-                <td class="value">
-                    <span class="status-badge status-{{ strtolower($apartment->status ?? 'frei') }}">
-                        {{ $apartment->status ?? 'Frei' }}
-                    </span>
-                </td>
-            </tr>
-            <tr>
-                <td class="label">Fläche</td>
-                <td class="value">{{ number_format($apartment->sqm, 2, ',', '.') }} m²</td>
-            </tr>
-            <tr>
-                <td class="label">Zimmer</td>
-                <td class="value">{{ $apartment->rooms }}</td>
-            </tr>
-            <tr>
-                <td class="label">Geschoss</td>
-                <td class="value">{{ $floorName }}</td>
-            </tr>
-            @if($apartment->available_from)
-            <tr>
-                <td class="label">Bezugstermin</td>
-                <td class="value">{{ $apartment->available_from }}</td>
-            </tr>
+            @if($aptFloorplan)
+                <!-- Break and large floorplan if requested -->
+                <div style="page-break-before: always;"></div>
+                <div class="header">
+                    @if($logo)
+                        <img src="{{ $logo }}" alt="Logo">
+                    @endif
+                    <div class="header-title">Detail-Grundriss | {{ $apartment->name }}</div>
+                </div>
+                <div style="text-align:center; padding: 20px;">
+                    <img src="{{ $aptFloorplan }}" style="max-width: 100%; max-height: 70vh;">
+                </div>
             @endif
-            @if($apartment->marketing_type)
-            <tr>
-                <td class="label">Vermarktungsart</td>
-                <td class="value">{{ $apartment->marketing_type }}</td>
-            </tr>
-            @endif
-        </table>
 
-        @if(($settings['show_features'] ?? true) && $apartment->features && $apartment->features->count())
-            <h4 style="font-size: 13px; font-weight: 900; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;">Ausstattung</h4>
-            <div class="features">
-                @foreach($apartment->features as $feature)
-                    <span class="feature-badge">
-                        @if($feature->icon) {{ $feature->icon }} @endif
-                        {{ $feature->name }}
-                    </span>
+        @else
+            <!-- Project Fallback View -->
+            <h2>{{ $project->name }}</h2>
+            <p>{{ $project->description }}</p>
+            
+            @if(isset($settings['footer_text']))
+                <p>{{ $settings['footer_text'] }}</p>
+            @endif
+
+            <!-- Project apartments list -->
+            <table class="data-table">
+                <tr>
+                    <th>Wohnung</th>
+                    <th>Fläche</th>
+                    <th>Zimmer</th>
+                    <th>Preis</th>
+                </tr>
+                @foreach($project->apartments as $apt)
+                <tr>
+                    <td>{{ $apt->name }}</td>
+                    <td>{{ round($apt->sqm, 1) }} m²</td>
+                    <td>{{ $apt->rooms }}</td>
+                    <td>{{ $apt->price ? number_format($apt->price, 0, ',', '.') . ' '.env('APP_CURRENCY', 'CHF') : 'Auf Anfrage' }}</td>
+                </tr>
                 @endforeach
-            </div>
-        @endif
-
-        @if(($settings['show_rooms'] ?? true) && $apartment->roomsList && $apartment->roomsList->count())
-            <h4 style="font-size: 13px; font-weight: 900; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin: 30px 0 10px;">Raumaufteilung</h4>
-            <table class="room-table">
-                <thead>
-                    <tr><th>Raum</th><th style="text-align:right;">Fläche</th></tr>
-                </thead>
-                <tbody>
-                    @php $totalRoomSqm = 0; @endphp
-                    @foreach($apartment->roomsList as $room)
-                        <tr>
-                            <td>{{ $room->name }}</td>
-                            <td style="text-align:right;">{{ $room->sqm ? number_format($room->sqm, 2, ',', '.') . ' m²' : '–' }}</td>
-                        </tr>
-                        @php $totalRoomSqm += floatval($room->sqm); @endphp
-                    @endforeach
-                    <tr class="total">
-                        <td>Gesamt</td>
-                        <td style="text-align:right;">{{ number_format($totalRoomSqm, 2, ',', '.') }} m²</td>
-                    </tr>
-                </tbody>
             </table>
         @endif
+        
+    </div>
 
-        @if($project->description)
-            <h4 style="font-size: 13px; font-weight: 900; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin: 30px 0 10px;">Projekt-Beschreibung</h4>
-            <div class="description">{!! nl2br(e($project->description)) !!}</div>
-        @endif
-
-        {{-- Unit Table --}}
-        @if(($settings['show_unit_table'] ?? false) && count($otherUnits))
-            <h4 style="font-size: 13px; font-weight: 900; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin: 40px 0 10px;">Weitere verfügbare Wohnungen</h4>
-            <table class="room-table">
-                <thead>
-                    <tr>
-                        <th>Bezeichnung</th>
-                        <th style="text-align:center;">Zimmer</th>
-                        <th style="text-align:center;">Fläche</th>
-                        <th style="text-align:right;">Preis</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach($otherUnits as $unit)
-                        <tr>
-                            <td>{{ $unit->name }}</td>
-                            <td style="text-align:center;">{{ $unit->rooms }}</td>
-                            <td style="text-align:center;">{{ number_format($unit->sqm, 2, ',', '.') }} m²</td>
-                            <td style="text-align:right;">{{ $unit->price ? number_format($unit->price, 0, ',', '.') . ' €' : 'auf Anfrage' }}</td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        @endif
-
-        @if($contacts->count())
-            <div class="contact-box">
-                <h4>Ihre Ansprechpartner</h4>
-                @foreach($contacts as $contact)
-                    <div class="contact-row">
-                        <span class="contact-label">Name</span>
-                        <span class="contact-value">{{ $contact->name }}</span>
-                    </div>
-                    @if($contact->email)
-                    <div class="contact-row">
-                        <span class="contact-label">E-Mail</span>
-                        <span class="contact-value">{{ $contact->email }}</span>
-                    </div>
-                    @endif
-                    @if($contact->phone)
-                    <div class="contact-row">
-                        <span class="contact-label">Telefon</span>
-                        <span class="contact-value">{{ $contact->phone }}</span>
-                    </div>
-                    @endif
-                @endforeach
-            </div>
-        @endif
-
-        <div class="disclaimer">
-            @if(!empty($settings['footer_text']))
-                {!! nl2br(e($settings['footer_text'])) !!}
-            @else
-                Alle Angaben sind ohne Gewähr. Irrtümer und Zwischenverkauf vorbehalten. Grundrisse und Visualisierungen sind nicht maßstabsgetreu und können von der tatsächlichen Ausführung abweichen.
-            @endif
-            <br>Erstellt am {{ now()->format('d.m.Y') }} · {{ $project->name }}
-        </div>
-
-        <div class="page-footer">
-            <span>{{ $project->name }} · {{ $apartment->name }}</span>
-            <span>Erstellt am {{ now()->format('d.m.Y H:i') }}</span>
-        </div>
+    <div class="footer">
+        {!! nl2br(e($settings['footer_text'] ?? '')) !!} <br>
+        Generiert am {{ date('d.m.Y') }} &copy; {{ env('APP_NAME') }}
     </div>
 
 </body>

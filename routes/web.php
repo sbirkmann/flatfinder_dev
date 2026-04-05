@@ -25,6 +25,9 @@ Route::get('/p/{project}', [ProjectController::class, 'publicShow'])->name('proj
 Route::post('/p/{project}/inquire', [InquiryController::class, 'storePublic'])->name('projects.public.inquire');
 Route::get('/p/{project}/expose/{apartment}', [ApartmentController::class, 'downloadExpose'])->name('apartments.expose');
 
+// Public Configurator PDF
+Route::post('/p/{project}/configurator/{apartment}/pdf', [\App\Http\Controllers\PdfController::class, 'generateConfiguratorPdf'])->name('projects.public.configurator_pdf');
+
 // Public Cached Map Data Endpoint
 Route::get('/p/{project}/map-data', [\App\Http\Controllers\MapController::class, 'getMapData'])->name('projects.public.map-data');
 
@@ -45,6 +48,9 @@ Route::middleware([
     Route::post('projects/{project}/views/{view}/toggle-layer', [ProjectController::class, 'toggleViewLayer'])->name('projects.views.toggle-layer');
     Route::post('projects/{project}/frames/{frame}/optimize', [ProjectController::class, 'optimizeFrameMedia'])->name('projects.frames.optimize');
     Route::patch('projects/{project}/auto-tour', [ProjectController::class, 'updateAutoTour'])->name('projects.auto-tour.update');
+
+    // PDF Generator (Backend Expose)
+    Route::get('projects/{project}/expose/pdf/{apartment?}', [\App\Http\Controllers\PdfController::class, 'generateExposePdf'])->name('projects.expose.pdf');
 
     Route::post('media/upload/{model}/{id}', [\App\Http\Controllers\MediaController::class, 'store'])->name('media.upload');
     Route::put('media/{media}', [\App\Http\Controllers\MediaController::class, 'update'])->name('media.update');
