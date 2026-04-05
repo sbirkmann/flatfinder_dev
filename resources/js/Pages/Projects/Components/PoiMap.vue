@@ -411,10 +411,11 @@ watch([activeIsochrones, activeCategories, showSunControls, sunHour], () => {
 }, { deep: true });
 
 onMounted(async () => {
+    let lat = 51.165691;
+    let lon = 10.451526;
+    let addressFound = false;
+
     try {
-        let lat = 51.165691;
-        let lon = 10.451526;
-        let addressFound = false;
 
         // Fetch aggregated, cached Data from our Backend API instead of querying Overpass directly!
         if (props.projectId) {
