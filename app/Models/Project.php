@@ -28,6 +28,12 @@ class Project extends Model implements HasMedia
         'comparison_settings',
         'poi_settings',
         'contact_form_config',
+        'analytics_settings',
+        'calculator_settings',
+        'openimmo_settings',
+        'legal_settings',
+        'pdf_settings',
+        'auto_tour_settings',
     ];
 
     protected $casts = [
@@ -37,6 +43,12 @@ class Project extends Model implements HasMedia
         'comparison_settings' => 'array',
         'poi_settings' => 'array',
         'contact_form_config' => 'array',
+        'analytics_settings' => 'array',
+        'calculator_settings' => 'array',
+        'openimmo_settings' => 'array',
+        'legal_settings' => 'array',
+        'pdf_settings' => 'array',
+        'auto_tour_settings' => 'array',
     ];
 
     public function team(): BelongsTo
@@ -46,7 +58,7 @@ class Project extends Model implements HasMedia
 
     public function layers(): HasMany
     {
-        return $this->hasMany(Layer::class);
+        return $this->hasMany(Layer::class)->orderBy('sort_order');
     }
 
     public function views(): HasMany
@@ -100,5 +112,15 @@ class Project extends Model implements HasMedia
     public function virtualTours(): HasMany
     {
         return $this->hasMany(VirtualTour::class);
+    }
+
+    public function users(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class)->withPivot('role')->withTimestamps();
+    }
+
+    public function integrations(): HasMany
+    {
+        return $this->hasMany(Integration::class);
     }
 }

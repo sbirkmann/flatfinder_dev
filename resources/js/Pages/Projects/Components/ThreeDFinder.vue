@@ -13,12 +13,44 @@
         <!-- Draggable Wrapper -->
         <div class="absolute w-full h-full pointer-events-none origin-center py-0 z-0" :style="wrapperStyle">
             
-            <img v-if="activeImageUrl && !isLoadingFrames" 
-                 :src="activeImageUrl" 
-                 class="w-full h-full pointer-events-none" 
-                 style="object-fit: fill"
-                 @load="onImgLoad" 
-                 alt="3D Frame" />
+            <template v-if="activeImageUrl && !isLoadingFrames">
+                <!-- If depth map is available, load WebGL renderer -->
+                <ShadowRenderer 
+                    v-if="activeDepthMapUrl"
+                    :image-url="activeImageUrl"
+                    :depth-map-url="activeDepthMapUrl"
+                    :sun-azimuth="sunData?.diff || 0"
+                    :sun-altitude="sunData?.altitude || 30"
+                    :intensity="showSun && sunData?.altitude > 0 ? 1.0 : 0.0"
+                    @load="onImgLoad"
+                    :style="[dynamicImgStyle]"
+                    class="w-full h-full pointer-events-none transition-[filter,transform] duration-75 ease-in-out"
+                    :class="{ 'scale-105 blur-[2px] opacity-90 brightness-110': isAutoPlaying  }"
+                 />
+                 
+                <!-- Traditional image render -->
+                <img v-else
+                     :src="activeImageUrl" 
+                     class="w-full h-full pointer-events-none transition-[filter,transform] duration-75 ease-in-out" 
+                     :class="{ 'scale-105 blur-[2px] opacity-90 brightness-110': isAutoPlaying  }"
+                     :style="[dynamicImgStyle, {objectFit: 'fill'}]"
+                     @load="onImgLoad" 
+                     alt="3D Frame" />
+            </template>
+
+            <!-- Sun Flare Layer -->
+            <div v-if="showSun && sunData?.isVisible" class="absolute pointer-events-none z-10 duration-75 ease-in-out" :style="{
+                    left: `${sunData.xPercent}%`,
+                    top: `${sunData.yPercent}%`,
+                    transform: 'translate(-50%, -50%)',
+                    width: '300px',
+                    height: '300px',
+                    mixBlendMode: 'screen',
+                    opacity: sunData.intensity
+                }">
+                <div class="absolute inset-0 m-auto rounded-full bg-white shadow-[0_0_120px_40px_#facc15]" style="width: 50px; height: 50px; filter: blur(5px);"></div>
+                <div class="absolute inset-0 bg-[radial-gradient(circle,rgba(253,224,71,0.5)_0%,rgba(234,88,12,0.1)_40%,transparent_70%)]"></div>
+            </div>
 
             <!-- Polygons Layer -->
             <svg class="absolute top-0 left-0 w-full h-full pointer-events-auto overflow-visible" viewBox="0 0 100 100" preserveAspectRatio="none" @click="handleSvgClick">
@@ -220,6 +252,73 @@
                 </transition>
             </div>
 
+            <!-- Sun Controls (Quick Icon Overlay) -->
+            <div class="relative" @mouseenter="isSunDropdownOpen = true" @mouseleave="isSunDropdownOpen = false">
+                <button class="px-3 h-10 flex items-center justify-center bg-white/95 backdrop-blur-sm shadow-md rounded-full text-gray-700 hover:text-black hover:bg-white transition hidden sm:inline-flex" title="Sonnenstand" :class="{'text-yellow-500': showSun}">
+                    <svg class="w-5 h-5 transition-transform" :class="{'scale-110 text-yellow-500': isSunDropdownOpen || showSun}" fill="currentColor" viewBox="0 0 24 24"><path d="M12 7a5 5 0 100 10 5 5 0 000-10zM2 13h2a1 1 0 100-2H2a1 1 0 100 2zm18 0h2a1 1 0 100-2h-2a1 1 0 100 2zM11 2v2a1 1 0 102 0V2a1 1 0 10-2 0zm0 18v2a1 1 0 102 0v-2a1 1 0 10-2 0zM5.99 4.58a1 1 0 111.41 1.41L6.05 7.34a1 1 0 01-1.41-1.41l1.35-1.35zm12.02 12.02a1 1 0 111.41 1.41l-1.35 1.35a1 1 0 11-1.41-1.41l1.35-1.35zM5.99 19.42l-1.35-1.35a1 1 0 111.41-1.41l1.35 1.35a1 1 0 11-1.41 1.41zm12.02-12.02l1.35-1.35a1 1 0 011.41 1.41l-1.35 1.35a1 1 0 11-1.41-1.41z"/></svg>
+                </button>
+                <transition enter-active-class="transition duration-100 ease-out" enter-from-class="transform scale-95 opacity-0" enter-to-class="transform scale-100 opacity-100" leave-active-class="transition duration-75 ease-in" leave-from-class="transform scale-100 opacity-100" leave-to-class="transform scale-95 opacity-0">
+                    <div v-show="isSunDropdownOpen" class="absolute top-full left-0 pt-2 w-64 z-50 origin-top-left">
+                        <div class="bg-white/95 backdrop-blur-md border border-gray-200 shadow-xl rounded-[16px] p-4 flex flex-col gap-3 pointer-events-auto">
+                            <label class="flex items-center gap-2 mb-1 cursor-pointer">
+                                <input type="checkbox" v-model="showSun" class="rounded border-gray-300 text-yellow-500 focus:ring-yellow-400 w-4 h-4" />
+                                <span class="text-[13px] font-bold text-gray-700">Sonnenstand aktivieren</span>
+                            </label>
+                            
+                            <div v-if="showSun" class="w-full">
+                                <div class="flex justify-between items-center mb-1">
+                                    <span class="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Uhrzeit</span>
+                                    <span class="text-[12px] font-black text-gray-800">{{ currentTimeLabel }}</span>
+                                </div>
+                                <input type="range" v-model="sunHour" min="0" max="23" step="0.1" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-yellow-400" />
+                                <div class="flex justify-between mt-1 text-[9px] font-bold text-gray-400">
+                                    <span>00:00</span><span>12:00</span><span>24:00</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </transition>
+            </div>
+
+            <!-- Heatmap Filter (Quick Icon Overlay) -->
+            <div class="relative" @mouseenter="isHeatmapDropdownOpen = true" @mouseleave="isHeatmapDropdownOpen = false">
+                <button class="px-3 h-10 flex items-center justify-center bg-white/95 backdrop-blur-sm shadow-md rounded-full text-gray-700 hover:text-black hover:bg-white transition hidden sm:inline-flex" title="Heatmap Modus" :class="{'text-[#ab715c]': activeHeatmapMode !== 'none'}">
+                    <svg class="w-5 h-5 transition-transform" :class="{'scale-110 text-[#ab715c]': isHeatmapDropdownOpen}" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" /></svg>
+                </button>
+                <!-- Flyout Dropdown Container -->
+                <transition enter-active-class="transition duration-100 ease-out" enter-from-class="transform scale-95 opacity-0" enter-to-class="transform scale-100 opacity-100" leave-active-class="transition duration-75 ease-in" leave-from-class="transform scale-100 opacity-100" leave-to-class="transform scale-95 opacity-0">
+                    <div v-show="isHeatmapDropdownOpen" class="absolute top-full left-0 pt-2 w-48 z-50 origin-top-left">
+                        <div class="bg-white/95 backdrop-blur-md border border-gray-200 shadow-xl rounded-[16px] p-2 flex flex-col gap-1 pointer-events-auto">
+                            <label class="flex items-center gap-2 px-3 py-2 hover:bg-gray-100 rounded-[8px] cursor-pointer transition w-full">
+                                <input type="radio" value="none" v-model="activeHeatmapMode" class="w-4 h-4 text-[#ab715c] focus:ring-[#ab715c] cursor-pointer">
+                                <span class="text-[13px] font-bold text-gray-700 truncate mb-0.5 leading-none">Normal</span>
+                            </label>
+                            <label class="flex items-center gap-2 px-3 py-2 hover:bg-gray-100 rounded-[8px] cursor-pointer transition w-full">
+                                <input type="radio" value="price" v-model="activeHeatmapMode" class="w-4 h-4 text-[#ab715c] focus:ring-[#ab715c] cursor-pointer">
+                                <span class="text-[13px] font-bold text-gray-700 truncate mb-0.5 leading-none">Preis Heatmap</span>
+                            </label>
+                            <label class="flex items-center gap-2 px-3 py-2 hover:bg-gray-100 rounded-[8px] cursor-pointer transition w-full">
+                                <input type="radio" value="sqm" v-model="activeHeatmapMode" class="w-4 h-4 text-[#ab715c] focus:ring-[#ab715c] cursor-pointer">
+                                <span class="text-[13px] font-bold text-gray-700 truncate mb-0.5 leading-none">Flächen Heatmap</span>
+                            </label>
+                        </div>
+                    </div>
+                </transition>
+            </div>
+
+            <!-- Auto-Tour Editor Toggle (Admin) -->
+            <button v-if="isAuth" @click="isTourEditorOpen = !isTourEditorOpen" :class="['px-4 h-10 flex items-center gap-2 bg-white/95 backdrop-blur-sm shadow-md rounded-full text-[13px] font-bold transition mr-2', isTourEditorOpen ? 'text-brand-500 hover:text-brand-600 ring-2 ring-brand-500' : 'text-gray-700 hover:text-black hover:bg-white']" title="Storyboard REC Modus">
+                <span class="block w-3 h-3 bg-red-500 rounded-full animate-pulse"></span>
+                <span class="hidden sm:inline">REC Mode</span>
+            </button>
+
+            <!-- Auto-Tour Button -->
+            <button v-if="props.project?.auto_tour_settings?.active && props.project?.auto_tour_settings?.storyboard?.length > 0" @click="isPlayingStory ? isPlayingStory = false : startAutoTour()" :class="['px-4 h-10 flex items-center gap-2 bg-white/95 backdrop-blur-sm shadow-md rounded-full text-[13px] font-bold transition', isPlayingStory ? 'text-red-500 hover:text-red-600' : 'text-gray-700 hover:text-black hover:bg-white']" title="Kino-Tour starten">
+                <svg v-if="!isPlayingStory" class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                <svg v-else class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                <span class="hidden sm:inline">{{ isPlayingStory ? 'Tour stoppen' : 'Auto-Tour' }}</span>
+            </button>
+
             <!-- Alle Filter -->
             <button @click="showFiltersPopup = true" class="px-4 h-10 flex items-center gap-2 bg-white/95 backdrop-blur-sm shadow-md rounded-full text-[13px] font-bold text-gray-700 hover:text-black hover:bg-white transition ml-auto">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
@@ -295,9 +394,15 @@
                 </div>
                 
                 <div class="flex justify-between items-center mb-4 text-xs">
-                    <span class="font-medium text-gray-600 border-t pt-2 w-full flex justify-between items-center">
-                        Frame {{ activeFrame?.index || 0 }} - Stop:
-                        <input type="checkbox" v-model="isStopFrameModel" @change="toggleStopFrame" class="rounded text-brand-600 focus:ring-brand-500 w-4 h-4 shadow-sm" :disabled="!activeFrame" />
+                    <span class="font-medium text-gray-600 border-t pt-2 w-full flex flex-col gap-2">
+                        <div class="flex justify-between items-center w-full">
+                            Frame {{ activeFrame?.index || 0 }} - Stop:
+                            <input type="checkbox" v-model="isStopFrameModel" @change="toggleStopFrame" class="rounded text-brand-600 focus:ring-brand-500 w-4 h-4 shadow-sm" :disabled="!activeFrame" />
+                        </div>
+                        <div class="flex justify-between items-center w-full">
+                            Frame-Blick = Norden:
+                            <input type="checkbox" v-model="isNorthModel" @change="toggleNorth" class="rounded text-brand-600 focus:ring-brand-500 w-4 h-4 shadow-sm" :disabled="!activeFrame" />
+                        </div>
                     </span>
                 </div>
 
@@ -458,7 +563,7 @@
         </div>
 
         <!-- Bottom Right UI Container -->
-        <div class="absolute top-20 md:bottom-6 right-6 flex flex-col items-end gap-3 z-50 pointer-events-none">
+        <div class="absolute top-20 md:top-auto md:bottom-6 right-6 flex flex-col items-end gap-3 z-50 pointer-events-none">
             
             <!-- Zoom Controls Desktop (Vertical Pill) -->
             <div class="hidden md:flex flex-col bg-[#e6e6e6]/95 backdrop-blur-md rounded-[24px] shadow-lg overflow-hidden w-12 py-1 pointer-events-auto">
@@ -591,7 +696,78 @@
                 </div>
             </div>
         </div>
-
+        <!-- Visual Auto-Tour Editor (Auth Only) -->
+        <transition name="slide-up">
+            <div v-if="isTourEditorOpen" class="absolute bottom-8 left-1/2 -translate-x-1/2 z-[110] bg-white/95 backdrop-blur-md rounded-[20px] shadow-[0_10px_40px_rgba(0,0,0,0.15)] border border-gray-200 pointer-events-auto p-4 w-[90%] max-w-[800px] max-h-[50vh] overflow-hidden flex flex-col">
+                <div class="flex items-center justify-between font-bold border-b border-gray-100 pb-2 mb-3 shrink-0">
+                    <span class="text-brand-600 flex items-center gap-2"><span class="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse"></span> Storyboard REC</span>
+                    <button @click="isTourEditorOpen = false" class="text-gray-400 hover:text-black"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+                </div>
+                
+                <div class="flex-1 overflow-y-auto mb-3 space-y-2 pr-2 custom-scrollbar">
+                    <draggable v-model="draftStoryboard" item-key="uuid" handle=".cursor-move" class="space-y-2">
+                        <template #item="{ element, index }">
+                            <div class="bg-gray-50 border border-gray-200 rounded-lg p-2 flex gap-2 items-center text-sm">
+                                <span class="cursor-move text-gray-400 hover:text-brand-500 flex items-center">
+                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
+                                </span>
+                                <select v-model="element.type" class="text-xs py-1 border-gray-300 rounded shrink-0">
+                                    <option value="spin_to">Kamerafahrt</option>
+                                    <option value="tooltip">Tooltip</option>
+                                    <option value="video">Video</option>
+                                    <option value="audio">Audio</option>
+                                    <option value="highlight">Highlight</option>
+                                    <option value="virtual_tour">Virtuelle Tour</option>
+                                </select>
+                                
+                                <div class="flex-1 flex gap-2 min-w-0">
+                                    <input v-if="element.type === 'spin_to'" v-model.number="element.targetFrameIndex" type="number" class="w-full text-xs py-1 border-gray-300 rounded" placeholder="Frame">
+                                    <input v-if="element.type === 'tooltip'" v-model="element.text" type="text" class="w-full text-xs py-1 border-gray-300 rounded" placeholder="Text">
+                                    <input v-if="['video', 'audio'].includes(element.type)" v-model="element.url" type="text" class="w-full text-xs py-1 border-gray-300 rounded" placeholder="URL">
+                                    <select v-if="element.type === 'highlight'" v-model="element.apartment_id" class="w-full text-xs py-1 border-gray-300 rounded">
+                                        <option value="">Wohnung wählen</option>
+                                        <option v-for="ap in visibleApartments" :key="ap.id" :value="ap.id">{{ ap.name }}</option>
+                                    </select>
+                                    <template v-if="element.type === 'virtual_tour'">
+                                       <select v-model="element.virtual_tour_id" class="w-[50%] text-xs py-1 border-gray-300 rounded">
+                                           <option value="">Tour wählen</option>
+                                           <option v-for="vt in project.virtual_tours" :key="vt.id" :value="vt.id">{{ vt.name }}</option>
+                                       </select>
+                                       <input v-model.number="element.yaw" type="number" class="w-[25%] text-xs py-1 border-gray-300 rounded" placeholder="Yaw">
+                                       <input v-model.number="element.pitch" type="number" class="w-[25%] text-xs py-1 border-gray-300 rounded" placeholder="Pitch">
+                                    </template>
+                                    <input v-model.number="element.duration" type="number" class="w-20 shrink-0 text-xs py-1 border-gray-300 rounded" placeholder="ms">
+                                </div>
+                                
+                                <button @click="draftStoryboard.splice(index, 1)" class="text-red-400 hover:text-red-600"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+                            </div>
+                        </template>
+                    </draggable>
+                    <div v-if="draftStoryboard.length === 0" class="text-center text-gray-400 text-xs py-4">Noch keine Schritte hinzugefügt. Nutze die Buttons unten.</div>
+                </div>
+                
+                <div class="flex flex-wrap gap-2 shrink-0 border-t border-gray-100 pt-3">
+                    <button @click="addRecordFrame" class="px-3 py-1.5 bg-[#f0f9eb] text-[#3f6327] rounded text-xs font-bold border border-[#cbeaa0] flex hover:bg-[#dcf0d5] transition">
+                        + Aktuellen Frame
+                    </button>
+                    <button @click="draftStoryboard.push({ type: 'tooltip', text: '', duration: 3000, uuid: Date.now() })" class="px-3 py-1.5 bg-gray-100 text-gray-700 rounded text-xs font-bold border border-gray-300 hover:bg-gray-200 transition">
+                        + Tooltip
+                    </button>
+                    <button @click="draftStoryboard.push({ type: 'virtual_tour', virtual_tour_id: null, yaw: 0, pitch: 0, duration: 1000, uuid: Date.now() })" class="px-3 py-1.5 bg-blue-50 text-blue-700 rounded text-xs font-bold border border-blue-200 hover:bg-blue-100 transition">
+                        + Tour öffnen
+                    </button>
+                    <div class="ml-auto flex gap-2">
+                        <!-- Test Play Button -->
+                        <button @click="startAutoTour(draftStoryboard)" class="px-4 py-1.5 bg-brand-50 text-brand-700 rounded text-xs font-bold hover:bg-brand-100 transition">
+                            Vorschau Play
+                        </button>
+                        <button @click="saveStoryboard" class="px-4 py-1.5 bg-brand-600 text-white rounded text-xs font-bold shadow-sm hover:bg-brand-500 transition">
+                            Speichern
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </transition>
         <!-- Mobile Bottom Layout Container -->
         <div class="absolute bottom-0 left-0 right-0 z-[100] md:hidden flex flex-col pointer-events-none w-full max-w-[100vw]">
             
@@ -689,21 +865,207 @@
                 <div class="shrink-0 w-1"></div>
             </div>
         </div>
-
     </div>
 </template>
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
+import { router } from '@inertiajs/vue3';
 import { usePage } from '@inertiajs/vue3';
 import { eventBus } from '../eventBus.js';
 import DualSlider from '@/Components/DualSlider.vue';
+import ShadowRenderer from './ShadowRenderer.vue';
+
+// --- AI Depth Map Generation ---
+const activeDepthMapUrl = computed(() => {
+    if (!activeFrame.value) return null;
+    const expectedCollection = activeLayerId.value ? `layer_${activeLayerId.value}` : 'default';
+    
+    // Check for layer-specific depth map
+    let dm = activeFrame.value.media?.find(m => m.collection_name === 'depth_map' && m.custom_properties?.target_collection === expectedCollection);
+    
+    // Fallbacks
+    if (!dm) dm = activeFrame.value.media?.find(m => m.collection_name === 'depth_map' && m.custom_properties?.target_collection === 'default');
+    if (!dm) dm = activeFrame.value.media?.find(m => m.collection_name === 'depth_map');
+    
+    return dm ? dm.original_url : null;
+});
+
+// --- Sun Visualization Logic ---
+const isSunDropdownOpen = ref(false);
+const showSun = ref(false);
+const sunHour = ref(new Date().getHours() + new Date().getMinutes() / 60);
+
+const currentTimeLabel = computed(() => {
+    const h = Math.floor(sunHour.value);
+    const m = Math.floor((sunHour.value % 1) * 60);
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')} Uhr`;
+});
+
+const getSunPosition = (hour, lat, lng) => {
+    const rad = Math.PI / 180;
+    const now = new Date();
+    const date = new Date(now.getFullYear(), now.getMonth(), now.getDate(), Math.floor(hour), (hour % 1) * 60);
+    
+    const dayMs = 1000 * 60 * 60 * 24;
+    const J1970 = 2440588, J2000 = 2451545;
+    const toDays = (d) => (d.valueOf() / dayMs - 0.5 + J1970) - J2000;
+
+    const d = toDays(date);
+    const lw = rad * -lng;
+    const phi = rad * lat;
+
+    const e = rad * 23.4397;
+    const M = rad * (357.5291 + 0.98560028 * d);
+    const C = rad * (1.9148 * Math.sin(M) + 0.02 * Math.sin(2 * M) + 0.0003 * Math.sin(3 * M));
+    const lambda = M + C + rad * 102.9372 + Math.PI;
+
+    const dec = Math.asin(Math.sin(e) * Math.sin(lambda));
+    const ra = Math.atan2(Math.cos(e) * Math.sin(lambda), Math.cos(lambda));
+    const siderealTime = rad * (280.16 + 360.9856235 * d) - lw;
+    const H = siderealTime - ra;
+
+    const alt = Math.asin(Math.sin(phi) * Math.sin(dec) + Math.cos(phi) * Math.cos(dec) * Math.cos(H));
+    const az = Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(phi) - Math.tan(dec) * Math.cos(phi));
+
+    return {
+        azimuth: (az * 180 / Math.PI + 180) % 360,
+        altitude: alt * 180 / Math.PI
+    };
+};
 
 const page = usePage();
 const props = defineProps({
     project: Object,
     activeApartmentId: { type: [Number, String], default: null },
+    isVideoOpen: { type: Boolean, default: false },
+    isTourOpen: { type: Boolean, default: false }
 });
+
+import axios from 'axios';
+import draggable from 'vuedraggable';
+
+// --- Story Engine (Auto-Tour with Video Continuation) ---
+const isPlayingStory = ref(false);
+const isTourEditorOpen = ref(false);
+const draftStoryboard = ref([]);
+
+watch(isTourEditorOpen, (open) => {
+    if (open) {
+        // Deep clone current storyboard
+        draftStoryboard.value = JSON.parse(JSON.stringify(props.project?.auto_tour_settings?.storyboard || []));
+    }
+});
+
+const saveStoryboard = async () => {
+    try {
+        const payload = {
+            auto_tour_settings: {
+                ...props.project?.auto_tour_settings,
+                active: true,
+                storyboard: draftStoryboard.value
+            }
+        };
+        const response = await axios.patch(`/projects/${props.project.id}/auto-tour`, payload);
+        alert('Storyboard erfolgreich gespeichert!');
+        // Optionally update props locally, though Inertia reload might be better.
+    } catch (e) {
+        alert('Fehler beim Speichern: ' + e.message);
+    }
+};
+
+const addRecordFrame = () => {
+    if (!activeFrame.value) return;
+    draftStoryboard.value.push({
+        type: 'spin_to',
+        targetFrameIndex: activeFrame.value.index,
+        duration: 2500,
+        uuid: Date.now() + Math.random().toString()
+    });
+};
+
+const emit = defineEmits(['video-click', 'apartment-click', 'slider-click', 'tour-click', 'deselect']);
+
+let resumeVideoPromise = null;
+let currentAudio = null;
+
+watch(() => props.isVideoOpen, (isOpen) => {
+    if (!isOpen && resumeVideoPromise) {
+        setTimeout(() => {
+            resumeVideoPromise();
+            resumeVideoPromise = null;
+        }, 500); // short wait before continuing tour
+    }
+});
+
+watch(() => props.isTourOpen, (isOpen) => {
+    if (!isOpen && resumeVideoPromise) {
+        setTimeout(() => {
+            resumeVideoPromise();
+            resumeVideoPromise = null;
+        }, 500);
+    }
+});
+
+// Stop tour when unmounted or manually aborted
+watch(isPlayingStory, (isPlaying) => {
+    if (!isPlaying && currentAudio) {
+        currentAudio.pause();
+        currentAudio = null;
+    }
+});
+
+const startAutoTour = async (overrideStoryboard = null) => {
+    const settings = props.project?.auto_tour_settings;
+    const storyboard = overrideStoryboard || settings?.storyboard;
+    if (!storyboard?.length) {
+        alert("Leider ist für dieses Projekt noch keine Auto-Tour konfiguriert.");
+        return;
+    }
+    
+    if (isPlayingStory.value) return;
+    isPlayingStory.value = true;
+
+    for (const step of storyboard) {
+        if (!isPlayingStory.value) break;
+
+        if (step.type === 'spin_to') {
+            await new Promise(resolve => animateToFrame(step.targetFrameIndex, resolve));
+            if (step.duration) await new Promise(resolve => setTimeout(resolve, step.duration));
+        } else if (step.type === 'tooltip') {
+            hoveredPointTooltipText.value = step.text;
+            tooltipPos.value = { x: window.innerWidth / 2 - 100, y: window.innerHeight / 2 };
+            await new Promise(resolve => setTimeout(resolve, step.duration || 3000));
+            hoveredPointTooltipText.value = null;
+        } else if (step.type === 'video') {
+            emit('video-click', step.url);
+            await new Promise(resolve => {
+                 resumeVideoPromise = resolve;
+            });
+        } else if (step.type === 'audio') {
+            if (currentAudio) currentAudio.pause();
+            currentAudio = new Audio(step.url);
+            currentAudio.play().catch(e => console.error("Audio blockiert:", e));
+            if (step.duration) {
+                await new Promise(resolve => setTimeout(resolve, step.duration));
+                currentAudio.pause();
+                currentAudio = null;
+            }
+        } else if (step.type === 'highlight') {
+            emit('apartment-click', step.apartment_id);
+            await new Promise(resolve => setTimeout(resolve, step.duration || 3000));
+            emit('deselect');
+        } else if (step.type === 'virtual_tour') {
+            emit('tour-click', step.virtual_tour_id, step.yaw || 0, step.pitch || 0);
+            // It will trigger the prop isTourOpen=true in PublicShow,
+            // we wait until isTourOpen becomes false (detected via watcher resolving resumeVideoPromise).
+            await new Promise(resolve => {
+                 resumeVideoPromise = resolve;
+            });
+        }
+    }
+    isPlayingStory.value = false;
+};
 
 const mobileSelectedApartmentId = ref(null);
 const mobileSelectedApartment = computed(() => props.project?.apartments?.find(a => a.id === mobileSelectedApartmentId.value) || null);
@@ -755,6 +1117,7 @@ onUnmounted(() => {
 
 // --- Filter Logic ---
 const isEtagenDropdownOpen = ref(false);
+const isHeatmapDropdownOpen = ref(false);
 const isAvailabilityOnly = ref(false);
 const showFiltersPopup = ref(false);
 
@@ -871,6 +1234,51 @@ const activeFrame = computed(() => {
     if (activeViewFrames.value.length === 0) return null;
     return activeViewFrames.value.find(f => f.index === activeFrameIndex.value) 
         || activeViewFrames.value[0];
+});
+
+const sunData = computed(() => {
+    if (!showSun.value || !activeFrame.value) return null;
+    
+    const projectLat = 51.165691;
+    const projectLon = 10.451526;
+    
+    const pos = getSunPosition(sunHour.value, projectLat, projectLon);
+    
+    const frames = activeViewFrames.value;
+    if (!frames.length) return null;
+    
+    const northFrame = frames.find(f => f.is_north);
+    const northIdx = northFrame ? northFrame.index : 0;
+    const currentIdx = activeFrame.value.index;
+    
+    const anglePerFrame = 360 / frames.length;
+    let cameraAzimuth = ((currentIdx - northIdx) * anglePerFrame) % 360;
+    if (cameraAzimuth < 0) cameraAzimuth += 360;
+    
+    let diff = (pos.azimuth - cameraAzimuth + 540) % 360 - 180;
+    
+    const isVisible = pos.altitude > 0 && Math.abs(diff) < 70;
+    const xPercent = 50 + (diff / 70) * 50; 
+    const yPercent = 70 - (pos.altitude / 60) * 60;
+    
+    const intensity = Math.max(0, 1 - Math.abs(diff) / 70) * Math.min(1, pos.altitude / 10);
+    
+    return { ...pos, diff, cameraAzimuth, isVisible, xPercent, yPercent, intensity };
+});
+
+const dynamicImgStyle = computed(() => {
+    if (!sunData.value || !showSun.value) return {};
+    if (sunData.value.altitude < 0) {
+        const brightness = Math.max(0.25, 1 - (Math.abs(sunData.value.altitude) / 15));
+        return { filter: `brightness(${brightness}) sepia(0.3) hue-rotate(180deg) saturate(0.8)` }; 
+    }
+    let filterStr = "";
+    if (sunData.value.altitude < 15) {
+        filterStr += `sepia(0.2) saturate(1.1) hue-rotate(-5deg) brightness(0.95) `;
+    } else {
+        filterStr += `brightness(1.02) saturate(1.05) `;
+    }
+    return { filter: filterStr.trim() };
 });
 
 // Animation State
@@ -1099,6 +1507,7 @@ const handleWheel = (e) => {
 };
 
 const handleResize = () => {
+    if (!containerRef.value) return;
     
     const cW = containerRef.value.clientWidth;
     const cH = containerRef.value.clientHeight;
@@ -1295,7 +1704,6 @@ const startDragPolygon = (poly, e) => {
     draggedPolyId.value = poly.id;
 };
 
-const emit = defineEmits(['apartment-click', 'deselect', 'slider-click', 'tour-click', 'video-click']);
 
 const handlePolygonPublicClick = (poly) => {
     if (poly.link_type === 'view' && poly.target_view_id) {
@@ -1333,6 +1741,27 @@ const handlePointPublicClick = (pt) => {
     }
 };
 
+const activeHeatmapMode = ref('none'); // 'none', 'price', 'sqm'
+const heatmapStats = computed(() => {
+    let aps = props.project?.apartments || [];
+    let prices = aps.map(a => parseFloat(a.price)).filter(p => !isNaN(p) && p > 0);
+    let sqms = aps.map(a => parseFloat(a.sqm)).filter(s => !isNaN(s) && s > 0);
+    return {
+        priceMin: prices.length ? Math.min(...prices) : 0,
+        priceMax: prices.length ? Math.max(...prices) : 1,
+        sqmMin: sqms.length ? Math.min(...sqms) : 0,
+        sqmMax: sqms.length ? Math.max(...sqms) : 1,
+    };
+});
+const getHeatmapColor = (value, min, max) => {
+    if(!value || max === min) return 'rgba(200,200,200,0.6)';
+    let ratio = (value - min) / (max - min);
+    ratio = Math.max(0, Math.min(1, ratio));
+    // 0 = Blue (240), 1 = Red (0). So hue = (1-ratio)*240
+    const hue = (1 - ratio) * 240;
+    return `hsla(${hue}, 80%, 50%, 0.65)`;
+};
+
 const hexToRgba = (hex, alpha) => {
     if (!hex) return `rgba(255,255,255,${alpha})`;
     const [r, g, b] = hex.match(/\w\w/g).map(x => parseInt(x, 16));
@@ -1350,6 +1779,16 @@ const getPolygonFill = (poly, idx) => {
 
         const cs = props.project.color_settings || {};
         const ap = props.project.apartments?.find(a => a.id === poly.apartment_id);
+
+        if (activeHeatmapMode.value !== 'none' && ap) {
+            if (activeHeatmapMode.value === 'price') {
+                return getHeatmapColor(parseFloat(ap.price), heatmapStats.value.priceMin, heatmapStats.value.priceMax);
+            }
+            if (activeHeatmapMode.value === 'sqm') {
+                return getHeatmapColor(parseFloat(ap.sqm), heatmapStats.value.sqmMin, heatmapStats.value.sqmMax);
+            }
+        }
+
         const status = ap?.status?.toLowerCase();
         if (status === 'verkauft')   return hexToRgba(cs.verkauft?.base  || '#e60000', 0.55);
         if (status === 'vermietet')  return hexToRgba(cs.vermietet?.base || '#ff4d4d', 0.55);
@@ -1613,6 +2052,22 @@ const toggleStopFrame = () => {
     window.axios.post(`/projects/${props.project.id}/relation/store`, {
         model: 'Frame',
         payload: { is_stop_frame: activeFrame.value.is_stop_frame },
+        id: activeFrame.value.id
+    });
+};
+
+const isNorthModel = computed({
+    get: () => activeFrame.value?.is_north || false,
+    set: (val) => {
+        if(activeFrame.value) activeFrame.value.is_north = val;
+    }
+});
+
+const toggleNorth = () => {
+    if(!activeFrame.value) return;
+    window.axios.post(`/projects/${props.project.id}/relation/store`, {
+        model: 'Frame',
+        payload: { is_north: activeFrame.value.is_north },
         id: activeFrame.value.id
     });
 };

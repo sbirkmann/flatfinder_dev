@@ -10,42 +10,173 @@ const PublicHotspotViewer = defineAsyncComponent(() => import('./Components/Publ
 const DualSlider = defineAsyncComponent(() => import('@/Components/DualSlider.vue'));
 const PoiMap = defineAsyncComponent(() => import('./Components/PoiMap.vue'));
 const ApartmentCompareModal = defineAsyncComponent(() => import('./Components/ApartmentCompareModal.vue'));
+const FinanceCalculator = defineAsyncComponent(() => import('./Components/FinanceCalculator.vue'));
 import DialogModal from '@/Components/DialogModal.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import InputError from '@/Components/InputError.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
+import { InformationCircleIcon } from '@heroicons/vue/24/outline';
+
+// --- WOW Features State ---
+const isImmersiveMode = ref(false);
+let immersiveAudio = null;
+const toggleImmersiveMode = () => {
+    isImmersiveMode.value = !isImmersiveMode.value;
+    if (isImmersiveMode.value) {
+        if (!immersiveAudio) {
+            immersiveAudio = new Audio('https://cdn.pixabay.com/audio/2022/02/07/audio_c3be400030.mp3');
+            immersiveAudio.loop = true;
+            immersiveAudio.volume = 0.3;
+        }
+        immersiveAudio.play().catch(e => console.warn('Autoplay blocked', e));
+    } else {
+        if (immersiveAudio) immersiveAudio.pause();
+    }
+};
+
+const showArViewer = ref(false);
+const arModelSrc = ref('/test.glb');
+
+const openArViewer = () => {
+    showArViewer.value = true;
+    if (typeof window !== 'undefined' && !document.getElementById('model-viewer-script')) {
+        const script = document.createElement('script');
+        script.id = 'model-viewer-script';
+        script.type = 'module';
+        script.src = 'https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js';
+        document.head.appendChild(script);
+    }
+};
 
 const showContactForm = ref(false);
+const showLegalModal = ref(false);
+const legalModalType = ref('');
+const legalContent = ref('');
+
+const openLegal = (type) => {
+    legalModalType.value = type;
+    legalContent.value = props.project.legal_settings?.[type] || '';
+    showLegalModal.value = true;
+};
 const contactForm = useForm({
     apartment_id: null,
+    visitor_id: null,
     source: 'Website',
     fields: {}
 });
 
 const openContactForm = () => {
     contactForm.apartment_id = activeApartment.value?.id || null;
+    contactForm.visitor_id = visitorId.value || parseInt(localStorage.getItem(`wf_visitor_${props.project.id}`)) || null;
     const fieldsConfig = props.project.contact_form_config?.fields || [];
     const fieldsData = {};
     fieldsConfig.forEach(f => { fieldsData[f.id] = ''; });
     contactForm.fields = fieldsData;
     showContactForm.value = true;
+    track('contact_form_open', { apartment: activeApartment.value });
 };
 
 const submitContactForm = () => {
     contactForm.post(route('projects.public.inquire', props.project.id), {
         preserveScroll: true,
         onSuccess: () => {
-            showContactForm.value = false;
-            contactForm.reset();
+            contactForm.reset('fields');
+            track('contact_form_submit', { apartment: activeApartment.value });
+            
+            // WOW Feature: Confetti Explosion
+            if (typeof window !== 'undefined') {
+                if (typeof window.confetti === 'undefined') {
+                    const script = document.createElement('script');
+                    script.src = 'https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js';
+                    script.onload = () => triggerConfetti();
+                    document.head.appendChild(script);
+                } else {
+                    triggerConfetti();
+                }
+            }
+
+            setTimeout(() => {
+                showContactForm.value = false;
+                contactForm.wasSuccessful = false;
+            }, 6000);
         }
     });
+};
+
+const triggerConfetti = () => {
+    const duration = 3000;
+    const end = Date.now() + duration;
+    const colors = [primaryBase.value || '#ab715c', '#dcf0d5', '#ffffff'];
+
+    (function frame() {
+        window.confetti({
+            particleCount: 5, angle: 60, spread: 55, origin: { x: 0 }, colors: colors, zIndex: 3000
+        });
+        window.confetti({
+            particleCount: 5, angle: 120, spread: 55, origin: { x: 1 }, colors: colors, zIndex: 3000
+        });
+        if (Date.now() < end) {
+            requestAnimationFrame(frame);
+        }
+    }());
+};
+
+const getContrastYIQ = (hexcolor) => {
+    if (!hexcolor) return 'white';
+    hexcolor = hexcolor.replace("#", "");
+    if (hexcolor.length === 3) {
+        hexcolor = hexcolor.split('').map(c => c + c).join('');
+    }
+    const r = parseInt(hexcolor.substr(0,2),16);
+    const g = parseInt(hexcolor.substr(2,2),16);
+    const b = parseInt(hexcolor.substr(4,2),16);
+    const yiq = ((r*299)+(g*587)+(b*114))/1000;
+    return (yiq >= 128) ? '#111827' : '#ffffff';
+};
+
+const primaryContrast = computed(() => getContrastYIQ(primaryBase.value));
+
+// --- FOMO Ticker Logic ---
+const activeFomo = ref(null);
+const fomoMessages = [
+    "Jemand aus München sieht sich gerade {id} an",
+    "Ein neues Kauf-Interesse für {id} liegt vor",
+    "Jemand hat soeben ein Exposé für {id} angefordert",
+    "{id} wurde gerade der Vergleichsliste hinzugefügt"
+];
+let fomoInterval = null;
+
+const startFomoTicker = () => {
+    if (typeof window === 'undefined') return;
+    if (fomoInterval) clearInterval(fomoInterval);
+    const triggerNext = () => {
+        const delay = Math.random() * 20000 + 15000; // 15 to 35 seconds delay
+        fomoInterval = setTimeout(() => {
+            if (filteredApartments.value && filteredApartments.value.length > 0) {
+                const randomApt = filteredApartments.value[Math.floor(Math.random() * filteredApartments.value.length)];
+                let msg = fomoMessages[Math.floor(Math.random() * fomoMessages.length)];
+                msg = msg.replace('{id}', randomApt.name);
+                
+                activeFomo.value = {
+                    message: msg,
+                    apartment: randomApt
+                };
+                setTimeout(() => {
+                    activeFomo.value = null;
+                }, 6000);
+            }
+            triggerNext();
+        }, delay);
+    };
+    triggerNext();
 };
 
 const props = defineProps({
     project: Object,
     isAuthenticated: Boolean,
+    ogMeta: { type: Object, default: () => ({}) },
 });
 
 const projectLogo = computed(() => {
@@ -148,12 +279,85 @@ onMounted(() => {
 
     // --- Visitor Tracking (only for non-authenticated users) ---
     if (!props.isAuthenticated) {
-        initTracking();
+        const campaign = urlParams.get('campaign') || urlParams.get('utm_campaign') || urlParams.get('src');
+        initTracking(campaign);
     }
+    initGA();
 });
+
+// Watch filters for internal tracking (debounced)
+let filterTrackTimeout = null;
+watch(() => ({ ...eventBus.filters }), (newFilters) => {
+    clearTimeout(filterTrackTimeout);
+    filterTrackTimeout = setTimeout(() => {
+        track('filter_used', { filters: newFilters });
+    }, 2000); // 2s debounce to avoid spam
+}, { deep: true });
+
+const track = (trigger, context = null) => {
+    // 1. Internal Backend Tracking
+    // Define mapping for internal VisitorEvents
+    const mapping = {
+        'page_view': { type: 'page_view' },
+        'contact_form_open': { type: 'contact_intent' },
+        'contact_form_submit': { type: 'contact_click' },
+        'apartment_view': { type: 'apartment_view', target: 'apartment' },
+        'map_open': { type: 'map_open' },
+        'tour_open': { type: 'tour_open', target: 'tour_point' },
+        'slider_open': { type: 'slider_open', target: 'slider' },
+        'favorite_toggle': { type: 'favorite', target: 'apartment' },
+        'filter_used': { type: 'filter_used' },
+        'view_change': { type: 'view_change' },
+        'expose_download': { type: 'expose_download', target: 'apartment' },
+        'project_pdf_download': { type: 'project_pdf_download' },
+    };
+
+    const map = mapping[trigger];
+    if (map && visitorId.value) {
+        const targetId = context?.apartment?.id || context?.id || null;
+        const targetType = context?.type || map.target || null;
+        
+        fetch('/api/tracking/track', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({
+                visitor_id: visitorId.value,
+                project_id: props.project.id,
+                event_type: map.type,
+                target_id: targetId,
+                target_type: targetType,
+                meta: context || null,
+            }),
+        }).catch(() => {});
+    }
+
+    // 2. Google Analytics 4 (GA4)
+    const gaSettings = props.project.analytics_settings;
+    if (gaSettings && gaSettings.active && gaSettings.ga_id && typeof window.gtag === 'function') {
+        const events = gaSettings.events || [];
+        events.forEach(ev => {
+            if (ev.trigger === trigger && ev.event_name) {
+                let params = { event_category: trigger };
+                if (ev.event_value) params.value = ev.event_value;
+                if (ev.pass_apartment_data && context && context.apartment) {
+                    params.apartment_name = context.apartment.name;
+                    params.apartment_id = context.apartment.id;
+                    if (context.apartment.price) params.apartment_price = context.apartment.price;
+                    if (context.apartment.rooms) params.apartment_rooms = context.apartment.rooms;
+                    if (context.apartment.sqm) params.apartment_sqm = context.apartment.sqm;
+                }
+                window.gtag('event', ev.event_name, params);
+            }
+        });
+    }
+};
 
 // --- Tracking System ---
 const visitorId = ref(null);
+
+// Restore from localStorage if available
+const storedVisitorId = localStorage.getItem(`wf_visitor_${props.project.id}`);
+if (storedVisitorId) visitorId.value = parseInt(storedVisitorId);
 
 const generateFingerprint = () => {
     const parts = [
@@ -201,7 +405,7 @@ const detectDevice = () => {
     return 'desktop';
 };
 
-const initTracking = async () => {
+const initTracking = async (campaign = null) => {
     try {
         const res = await fetch('/api/tracking/identify', {
             method: 'POST',
@@ -214,33 +418,38 @@ const initTracking = async () => {
                 device: detectDevice(),
                 language: navigator.language,
                 referrer: document.referrer || null,
+                campaign: campaign,
                 screen_resolution: screen.width + 'x' + screen.height,
             }),
         });
         const data = await res.json();
         visitorId.value = data.visitor_id;
+        localStorage.setItem(`wf_visitor_${props.project.id}`, data.visitor_id);
 
         // Track initial page view
-        trackEvent('page_view');
+        track('page_view');
     } catch (e) {
         console.warn('Tracking init failed', e);
     }
 };
 
-const trackEvent = (eventType, targetId = null, targetType = null, meta = null) => {
-    if (!visitorId.value) return;
-    fetch('/api/tracking/track', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        body: JSON.stringify({
-            visitor_id: visitorId.value,
-            project_id: props.project.id,
-            event_type: eventType,
-            target_id: targetId,
-            target_type: targetType,
-            meta: meta,
-        }),
-    }).catch(() => {});
+// --- Google Analytics Initialization ---
+const initGA = () => {
+    const gaSettings = props.project.analytics_settings;
+    if (gaSettings && gaSettings.active && gaSettings.ga_id) {
+        if (!document.getElementById('ga-script-' + gaSettings.ga_id)) {
+            const script = document.createElement('script');
+            script.async = true;
+            script.src = `https://www.googletagmanager.com/gtag/js?id=${gaSettings.ga_id}`;
+            script.id = 'ga-script-' + gaSettings.ga_id;
+            document.head.appendChild(script);
+
+            window.dataLayer = window.dataLayer || [];
+            window.gtag = function(){window.dataLayer.push(arguments);}
+            window.gtag('js', new Date());
+            window.gtag('config', gaSettings.ga_id);
+        }
+    }
 };
 
 
@@ -341,11 +550,39 @@ const showWishlist = ref(false);
 const showFiltersPopup = ref(false);
 const showMapPopup = ref(false);
 const mapPopupAddress = ref('');
+const showSortDropdown = ref(false);
+const showQrCode = ref(false);
+
+// --- Live Viewer Count (Social Proof) ---
+const liveViewerCount = ref(0);
+const updateLiveViewers = () => {
+    // Simulate live viewers based on time of day with natural fluctuation
+    const hour = new Date().getHours();
+    const baseViewers = hour >= 8 && hour <= 22 ? Math.floor(Math.random() * 5) + 3 : Math.floor(Math.random() * 3) + 1;
+    liveViewerCount.value = baseViewers;
+};
+onMounted(() => {
+    updateLiveViewers();
+    setInterval(updateLiveViewers, 30000); // Update every 30s
+});
+
+// --- WhatsApp Quick Contact ---
+const openWhatsApp = (phone, aptName) => {
+    const cleanPhone = phone?.replace(/[^\d+]/g, '') || '';
+    if (!cleanPhone) return;
+    const text = aptName
+        ? `Hallo! Ich interessiere mich für die Wohnung "${aptName}" im Projekt "${props.project.name}". Könnten Sie mir weitere Informationen zukommen lassen?`
+        : `Hallo! Ich interessiere mich für das Projekt "${props.project.name}". Könnten Sie mir weitere Informationen zukommen lassen?`;
+    window.open(`https://wa.me/${cleanPhone.replace('+', '')}?text=${encodeURIComponent(text)}`, '_blank');
+};
+
+// --- QR Code Generator (inline SVG) ---
+const projectQrUrl = computed(() => `${window.location.origin}/p/${props.project.id}`);
 
 const openMapPopup = (address) => {
     mapPopupAddress.value = address || 'Deutschland';
     showMapPopup.value = true;
-    trackEvent('map_open', null, null, { address });
+    track('map_open', { address });
 };
 
 const showSliderPopup = ref(false);
@@ -420,7 +657,7 @@ const toggleTourFavorite = () => {
             yaw: currentTourYaw.value,
             pitch: currentTourPitch.value
         });
-        trackEvent('favorite_tour', activeTourPoint.value.id, 'tour');
+        track('favorite_toggle', { id: activeTourPoint.value.id, type: 'tour' });
     }
     localStorage.setItem('flatplan_tour_favs', JSON.stringify(tourFavorites.value));
 };
@@ -496,7 +733,7 @@ const openTourPopup = (pointId, initialYaw = 0, initialPitch = 0) => {
         currentTourPitch.value = initialPitch;
 
         activeTourPoint.value = point;
-        trackEvent('tour_open', pointId, 'tour', { name: point.name });
+        track('tour_open', { id: pointId, name: point.name });
     }
 };
 
@@ -525,12 +762,13 @@ const openSliderPopup = (sliderId) => {
     if (activeSlider.value) {
         sliderPopupIndex.value = 0;
         showSliderPopup.value = true;
-        trackEvent('slider_open', sliderId, 'slider', { name: activeSlider.value.name });
+        track('slider_open', { id: sliderId, name: activeSlider.value.name });
     }
 };
 const switchToView = (viewId) => {
     eventBus.targetViewId = viewId;
     eventBus.setView('3d-finder');
+    track('view_change', { id: viewId });
 };
 
 const uniqueFloors = computed(() => {
@@ -685,7 +923,7 @@ const openApartment = (id) => {
     if (activeApartment.value && !isSidebarOpen.value) {
         isSidebarOpen.value = true;
     }
-    trackEvent('apartment_view', id, 'apartment', { name: activeApartment.value?.name });
+    track('apartment_view', { apartment: activeApartment.value });
 };
 const closeApartment = () => {
     activeApartment.value = null;
@@ -697,7 +935,7 @@ const toggleFavorite = (id) => {
         favorites.value = favorites.value.filter(fid => fid !== id);
     } else {
         favorites.value.push(id);
-        trackEvent('favorite', id, 'apartment');
+        track('favorite_toggle', { id, type: 'apartment' });
     }
     localStorage.setItem('flatplan_favorites', JSON.stringify(favorites.value));
 };
@@ -724,6 +962,7 @@ const isFavorite = (id) => favorites.value.includes(id);
 
 const isSidebarOpen = ref(true);
 onMounted(() => {
+    startFomoTicker();
     if (typeof window !== 'undefined') {
         const mql = window.matchMedia('(min-width: 768px)');
         
@@ -747,7 +986,7 @@ const showTourPopup = ref(false);
 
 watch(showTourPopup, (v) => {
     if (v && activeApartment.value) {
-        trackEvent('tour_open', activeApartment.value.id, 'apartment', { url: activeApartment.value.virtual_tour_url });
+        track('tour_open', { apartment: activeApartment.value, type: 'apartment', url: activeApartment.value.virtual_tour_url });
     }
 });
 
@@ -816,7 +1055,65 @@ const filteredApartments = computed(() => {
     return filtered;
 });
 
-const filteredApartmentsCount = computed(() => filteredApartments.value.length);
+const filteredApartmentsCount = computed(() => sortedApartments.value.length);
+
+// Sorting
+const sortBy = ref('name');
+const sortDir = ref('asc');
+const toggleSort = (field) => {
+    if (sortBy.value === field) {
+        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortBy.value = field;
+        sortDir.value = 'asc';
+    }
+};
+
+const sortedApartments = computed(() => {
+    const arr = [...filteredApartments.value];
+    arr.sort((a, b) => {
+        let va = a[sortBy.value];
+        let vb = b[sortBy.value];
+        if (sortBy.value === 'price' || sortBy.value === 'sqm' || sortBy.value === 'rooms') {
+            va = parseFloat(va) || 0;
+            vb = parseFloat(vb) || 0;
+        } else {
+            va = (va || '').toString().toLowerCase();
+            vb = (vb || '').toString().toLowerCase();
+        }
+        if (va < vb) return sortDir.value === 'asc' ? -1 : 1;
+        if (va > vb) return sortDir.value === 'asc' ? 1 : -1;
+        return 0;
+    });
+    return arr;
+});
+
+// Share
+const shareProject = async () => {
+    const url = window.location.href;
+    const title = props.project.name;
+    if (navigator.share) {
+        try {
+            await navigator.share({ title, url, text: `${title} – Jetzt verfügbare Wohnungen entdecken` });
+        } catch (e) { /* user cancelled */ }
+    } else {
+        await navigator.clipboard.writeText(url);
+        alert('Link in Zwischenablage kopiert!');
+    }
+};
+
+const shareApartment = async (apt) => {
+    const url = `${window.location.origin}/p/${props.project.id}?apartment=${apt.id}`;
+    const title = `${apt.name} – ${props.project.name}`;
+    if (navigator.share) {
+        try {
+            await navigator.share({ title, url, text: `${title} · ${apt.rooms || ''} Zi. · ${apt.sqm || ''} m²` });
+        } catch (e) { /* user cancelled */ }
+    } else {
+        await navigator.clipboard.writeText(url);
+        alert('Wohnungslink in Zwischenablage kopiert!');
+    }
+};
 
 const priceBoundaries = computed(() => {
     const prices = (props.project.apartments || []).map(a => parseFloat(a.price)).filter(p => !isNaN(p) && p > 0);
@@ -842,11 +1139,23 @@ const sqmModel = computed({
 </script>
 
 <template>
-    <Head :title="project.name" />
+    <Head :title="project.name">
+        <meta v-if="ogMeta.title" property="og:title" :content="ogMeta.title" />
+        <meta v-if="ogMeta.description" property="og:description" :content="ogMeta.description" />
+        <meta v-if="ogMeta.image" property="og:image" :content="ogMeta.image" />
+        <meta v-if="ogMeta.url" property="og:url" :content="ogMeta.url" />
+        <meta v-if="ogMeta.type" property="og:type" :content="ogMeta.type" />
+        <meta v-if="ogMeta.site_name" property="og:site_name" :content="ogMeta.site_name" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta v-if="ogMeta.title" name="twitter:title" :content="ogMeta.title" />
+        <meta v-if="ogMeta.description" name="twitter:description" :content="ogMeta.description" />
+        <meta v-if="ogMeta.image" name="twitter:image" :content="ogMeta.image" />
+        <meta v-if="ogMeta.description" name="description" :content="ogMeta.description" />
+    </Head>
 
     <!-- Intro Popup (Preview Image) -->
     <transition name="fade">
-        <div v-if="showPreviewPopup" class="fixed inset-0 z-[100] flex items-center justify-center bg-black cursor-pointer" @click="showPreviewPopup = false">
+        <div v-if="showPreviewPopup" class="fixed inset-0 z-[9999] flex items-center justify-center bg-black cursor-pointer" @click="showPreviewPopup = false">
             <img :src="projectPreviewImage.original_url" class="absolute inset-0 w-full h-full object-cover opacity-90 transition-transform duration-[5000ms] scale-100 hover:scale-105" alt="Preview Image" />
             
             <div class="relative z-10 text-white flex flex-col items-center gap-8">
@@ -880,10 +1189,12 @@ const sqmModel = computed({
                             <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
                         </button>
                     </div>
-                    <div class="w-full flex-1 bg-gray-100 relative">
+                    <div class="w-full flex-1 bg-gray-100 relative transition-all duration-[1500ms] ease-in-out" 
+                         :style="isImmersiveMode ? 'filter: sepia(0.2) saturate(1.2) hue-rotate(-15deg) brightness(0.85);' : ''">
                         <PoiMap v-if="project.poi_settings?.active" 
                                 :address-string="mapPopupAddress" 
-                                :poi-settings="project.poi_settings" />
+                                :poi-settings="project.poi_settings"
+                                :project-id="project.id" />
                         <iframe v-else
                             :src="'https://maps.google.com/maps?q=' + encodeURIComponent(mapPopupAddress) + '&t=&z=15&ie=UTF8&iwloc=&output=embed'"
                             width="100%" height="100%" style="border:0;" allowfullscreen="" loading="lazy"></iframe>
@@ -1209,18 +1520,39 @@ const sqmModel = computed({
                 <div v-if="projectLogo">
                     <img :src="projectLogo.original_url" class="h-10 w-auto object-contain" alt="Project Logo">
                 </div>
+                <!-- Immersive Mode Toggle -->
+                <button @click="toggleImmersiveMode" 
+                        class="w-10 h-10 rounded-full flex items-center justify-center transition shadow-sm border border-gray-100 shrink-0 ml-4"
+                        :class="isImmersiveMode ? 'bg-[#ab715c] text-white border-[#ab715c]' : 'bg-white text-gray-400 hover:text-[#ab715c] hover:bg-gray-50'" title="Immersive Audio & Night Mode">
+                    <svg v-if="isImmersiveMode" class="w-5 h-5 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072M17.657 6.343a8 8 0 010 11.314M6.343 17.657a8 8 0 010-11.314M8.464 15.536a5 5 0 010-7.072M12 15v-6" /></svg>
+                    <svg v-else class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.907L5.586 15z" /></svg>
+                </button>
             </div>
 
             <!-- Scrollable Content in Sidebar -->
             <div class="flex-1 overflow-y-auto px-6 md:px-8 space-y-8 scrollbar-hide pb-8">
                 <!-- Project Image & Title -->
                 <div class="pt-2 relative">
+
+                    <!-- Live Pulse Badge -->
+                    <div v-if="liveViewerCount > 0" class="flex items-center gap-2 mb-2">
+                        <span class="relative flex h-2.5 w-2.5">
+                          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                          <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+                        </span>
+                        <span class="text-[11px] font-bold text-red-500 uppercase tracking-wider">{{ liveViewerCount }} {{ liveViewerCount === 1 ? 'Person sieht' : 'Personen sehen' }} sich das Projekt an</span>
+                    </div>
                     
                     <h1 class="text-[32px] font-black leading-[1.1] mb-5 text-gray-900 tracking-tight flex items-start justify-between gap-4">
                         <span class="text-pretty mt-1">{{ project.name }}</span>
-                        <button v-if="project.has_google_map" @click="openMapPopup(project.address + ', ' + project.zip + ' ' + project.city)" class="shrink-0 w-11 h-11 rounded-full bg-gray-50 border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-[#ab715c] hover:text-white hover:border-[#ab715c] transition shadow-sm" title="Auf Karte anzeigen">
-                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                        </button>
+                        <div class="flex gap-2">
+                            <button @click="showQrCode = true" class="shrink-0 w-11 h-11 rounded-full bg-gray-50 border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-[#ab715c] hover:text-white hover:border-[#ab715c] transition shadow-sm" title="QR Code für dieses Projekt generieren">
+                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" /></svg>
+                            </button>
+                            <button v-if="project.has_google_map" @click="openMapPopup(project.address + ', ' + project.zip + ' ' + project.city)" class="shrink-0 w-11 h-11 rounded-full bg-gray-50 border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-[#ab715c] hover:text-white hover:border-[#ab715c] transition shadow-sm" title="Auf Karte anzeigen">
+                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                            </button>
+                        </div>
                     </h1>
                     
                     <div class="flex items-start gap-3 bg-gray-50/80 rounded-2xl p-4 mb-6 border border-gray-100">
@@ -1283,7 +1615,7 @@ const sqmModel = computed({
 
                 <!-- Projekt PDF Button -->
                 <div v-if="projectPdf" class="mt-6">
-                    <button @click="activeIframe = projectPdf.original_url" class="w-full bg-[#fbfbfb] border border-gray-200 text-[14px] font-bold text-gray-800 rounded-[12px] py-3.5 hover:bg-[#ab715c] hover:text-white hover:border-[#ab715c] transition shadow-[0_2px_4px_rgba(0,0,0,0.02)] text-center flex items-center justify-center gap-2">
+                    <button @click="activeIframe = projectPdf.original_url; track('project_pdf_download');" class="w-full bg-[#fbfbfb] border border-gray-200 text-[14px] font-bold text-gray-800 rounded-[12px] py-3.5 hover:bg-[#ab715c] hover:text-white hover:border-[#ab715c] transition shadow-[0_2px_4px_rgba(0,0,0,0.02)] text-center flex items-center justify-center gap-2">
                         <svg class="w-5 h-5 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                         Projekt Exposé
                     </button>
@@ -1374,7 +1706,7 @@ const sqmModel = computed({
                     </div>
 
                     <!-- Wohnungen Liste -->
-                    <div id="apartmentsList" class="mt-12 mb-4" v-if="filteredApartments.length">
+                    <div id="apartmentsList" class="mt-12 mb-4" v-if="sortedApartments.length">
 
                         <!-- Sticky Toolbar -->
                         <div class="sticky top-0 z-[60] bg-white/95 backdrop-blur-sm border-b border-gray-100 mb-3 py-3 flex items-center justify-between">
@@ -1385,19 +1717,27 @@ const sqmModel = computed({
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                                 </svg>
                                 <span v-if="favorites.length" class="bg-[#ab715c] text-white text-[10px] font-black rounded-full w-4 h-4 flex items-center justify-center">{{ favorites.length }}</span>
-                            </button>
-
-                            <!-- Right: Actions -->
-                            <div class="flex items-center gap-1">
-                                <!-- Print -->
-                                <button @click="printApartments" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-[#ab715c] transition" title="Drucken / PDF">
-                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                            </button>                            <div class="flex items-center gap-1">
+                                <!-- Sort -->
+                                <div class="relative" ref="sortDropdownRef">
+                                    <button @click="showSortDropdown = !showSortDropdown" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-[#ab715c] transition" title="Sortieren">
+                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" /></svg>
+                                    </button>
+                                    <div v-show="showSortDropdown" class="absolute right-0 top-10 bg-white border border-gray-200 rounded-xl shadow-xl py-1.5 w-44 z-50">
+                                        <button v-for="s in [{key:'name',label:'Name'},{key:'price',label:'Preis'},{key:'sqm',label:'Fläche'},{key:'rooms',label:'Zimmer'}]" :key="s.key" @click="toggleSort(s.key); showSortDropdown = false" class="w-full text-left px-4 py-2 text-[13px] hover:bg-gray-50 flex items-center justify-between" :class="sortBy === s.key ? 'font-bold text-[#ab715c]' : 'text-gray-600'">
+                                            {{ s.label }}
+                                            <span v-if="sortBy === s.key" class="text-[10px]">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
+                                        </button>
+                                    </div>
+                                </div>
+                                <!-- Share -->
+                                <button @click="shareProject" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-[#ab715c] transition" title="Teilen">
+                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
                                 </button>
-                                <!-- Layout Toggle -->
-                                <button @click="listLayout = listLayout === 'card' ? 'compact' : 'card'" :class="['w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition', listLayout === 'compact' ? 'bg-gray-100 text-[#ab715c]' : 'text-gray-400']" title="Layout">
-                                    <svg v-if="listLayout === 'card'" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>
-                                    <svg v-else class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>
-                                </button>
+                                <!-- Admin Link -->
+                                <a v-if="isAuthenticated" :href="`/projects/${project.id}`" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-[#ab715c] transition" title="Zum Editor">
+                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                </a>
                                 <!-- Filter -->
                                 <button @click="showFiltersPopup = true"
                                         :class="['w-8 h-8 flex items-center justify-center rounded-full transition relative', (eventBus.filters.floors.length || eventBus.filters.rooms.length || eventBus.filters.availabilities.length || eventBus.filters.features.length || eventBus.filters.priceMin !== null || eventBus.filters.sqmMin !== null) ? 'bg-[#ab715c] text-white hover:bg-[#96624f]' : 'hover:bg-gray-100 text-gray-400 hover:text-[#ab715c]']" title="Filter">
@@ -1408,8 +1748,18 @@ const sqmModel = computed({
 
                         <!-- CARD LAYOUT -->
                         <div v-if="listLayout === 'card'" class="flex flex-col gap-3">
-                            <div v-for="apt in filteredApartments" :key="apt.id" @click="openApartment(apt.id)" class="w-full bg-white rounded-[20px] shadow-sm border border-[#ede7e3] p-3.5 flex gap-4 transition-all duration-300 hover:shadow-md hover:border-gray-300 hover:-translate-y-0.5 cursor-pointer relative group">
+                            <div v-for="(apt, index) in filteredApartments" :key="apt.id" @click="openApartment(apt.id)" 
+                                 class="w-full bg-white rounded-[20px] shadow-sm border p-3.5 flex gap-4 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 cursor-pointer relative group"
+                                 :class="filteredApartments.length > 2 && index === 0 ? 'border-[#ab715c]/50 ring-1 ring-[#ab715c]/20' : 'border-[#ede7e3] hover:border-gray-300'">
                                 
+                                <!-- WOW Badges -->
+                                <div v-if="filteredApartments.length > 2 && index === 0" class="absolute -top-3 left-6 bg-gradient-to-r from-[#ab715c] to-[#96624f] text-white text-[10px] font-black tracking-widest px-2.5 py-0.5 rounded-full shadow-md shadow-[#ab715c]/30 z-20 animate-pulse">
+                                    ✨ SMART MATCH
+                                </div>
+                                <div v-else-if="index === 1" class="absolute -top-3 left-6 bg-gradient-to-r from-red-500 to-rose-600 text-white text-[10px] font-black tracking-widest px-2.5 py-0.5 rounded-full shadow-md shadow-red-500/30 z-20">
+                                    🔥 HEISS BEGEHRT
+                                </div>
+
                                 <!-- Avatar / Bild -->
                                 <div class="relative w-14 h-14 shrink-0">
                                     <img :src="apt.media?.[0]?.original_url || 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=150&q=80'" class="w-full h-full object-cover rounded-full border border-gray-100 shadow-sm" alt="Wohnung" />
@@ -1454,10 +1804,16 @@ const sqmModel = computed({
 
                         <!-- COMPACT LIST LAYOUT -->
                         <div v-else class="flex flex-col divide-y divide-gray-100">
-                            <div v-for="apt in filteredApartments" :key="apt.id" @click="openApartment(apt.id)" class="py-2.5 flex flex-col gap-1 cursor-pointer hover:bg-gray-50 px-1 transition rounded-[8px]">
+                            <div v-for="(apt, index) in filteredApartments" :key="apt.id" @click="openApartment(apt.id)" 
+                                 class="py-2.5 flex flex-col gap-1 cursor-pointer transition rounded-[8px] px-2"
+                                 :class="filteredApartments.length > 2 && index === 0 ? 'bg-[#ab715c]/5 border-l-4 border-[#ab715c]' : 'hover:bg-gray-50 border-l-4 border-transparent'">
                                 <!-- Row 1: Name + Price -->
                                 <div class="flex items-center justify-between">
-                                    <span class="text-[14px] font-black tracking-tight text-gray-900">{{ apt.name }}</span>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-[14px] font-black tracking-tight" :class="filteredApartments.length > 2 && index === 0 ? 'text-[#ab715c]' : 'text-gray-900'">{{ apt.name }}</span>
+                                        <span v-if="filteredApartments.length > 2 && index === 0" class="bg-[#ab715c] text-white text-[8px] font-bold px-1.5 py-0.5 rounded-sm uppercase animate-pulse">Smart Match</span>
+                                        <span v-else-if="index === 1" class="bg-red-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-sm uppercase">Heiß begehrt</span>
+                                    </div>
                                     <div class="bg-[#dcf0d5] text-[#3f6327] px-2 py-0.5 rounded-full font-bold shrink-0 whitespace-nowrap" style="font-size: 10px;">
                                         <template v-if="apt.price"><span class="text-[12px] mr-0.5">{{ new Intl.NumberFormat('de-DE').format(apt.price) }}</span> EUR</template>
                                         <template v-else>auf Anfrage</template>
@@ -1478,12 +1834,23 @@ const sqmModel = computed({
                                     <span class="text-[12px] font-semibold text-gray-500">{{ Math.round(apt.sqm * 10) / 10 }} m²</span>
                                     <span class="text-gray-300">|</span>
                                     <span class="text-[12px] font-semibold text-gray-500">{{ project.floors?.find(f => f.id === apt.floor_id)?.name || 'EG' }}</span>
-                                    <span class="text-gray-300">|</span>
                                     <span class="text-[12px] font-semibold text-gray-500">{{ apt.rooms }}</span>
                                 </div>
                             </div>
                         </div>
+                    </div>
 
+                    <div class="pt-8 pb-12 border-t border-gray-100 flex items-center justify-center gap-6 shrink-0">
+                        <button v-if="project.legal_settings?.impressum" 
+                                @click="openLegal('impressum')" 
+                                class="text-[12px] font-black text-gray-400 hover:text-[#ab715c] transition uppercase tracking-widest px-2">
+                            Impressum
+                        </button>
+                        <button v-if="project.legal_settings?.datenschutz" 
+                                @click="openLegal('datenschutz')" 
+                                class="text-[12px] font-black text-gray-400 hover:text-[#ab715c] transition uppercase tracking-widest px-2">
+                            Datenschutz
+                        </button>
                     </div>
 
                 </div>
@@ -1522,13 +1889,27 @@ const sqmModel = computed({
                         
                         <!-- Exposé Button -->
                         <div v-if="apartmentPdf" class="mt-2">
-                            <button @click="activeIframe = apartmentPdf.original_url" class="group w-full flex items-center justify-between p-3.5 border border-gray-200 rounded-[12px] bg-white hover:bg-gray-50 transition shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
+                            <button @click="activeIframe = apartmentPdf.original_url; track('expose_download', { apartment: activeApartment });" class="group w-full flex items-center justify-between p-3.5 border border-gray-200 rounded-[12px] bg-white hover:bg-gray-50 transition shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
                                 <div class="flex items-center gap-3 text-left">
                                     <svg class="w-5 h-5 text-[#ab715c] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                                     <span class="text-[14px] font-bold text-gray-800">Wohnungs-Exposé</span>
                                 </div>
                                 <svg class="w-5 h-5 text-gray-400 group-hover:text-[#ab715c] group-hover:translate-x-0.5 transition-all shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
                             </button>
+                        </div>
+
+                        <!-- Dynamisches PDF-Exposé -->
+                        <div v-if="!apartmentPdf" class="mt-2">
+                            <a :href="`/p/${project.id}/expose/${activeApartment.id}`"
+                               @click="track('expose_download', { apartment: activeApartment, dynamic: true })"
+                               target="_blank"
+                               class="group w-full flex items-center justify-between p-3.5 border border-gray-200 rounded-[12px] bg-white hover:bg-gray-50 transition shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
+                                <div class="flex items-center gap-3 text-left">
+                                    <svg class="w-5 h-5 text-[#ab715c] shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/></svg>
+                                    <span class="text-[14px] font-bold text-gray-800">PDF-Exposé herunterladen</span>
+                                </div>
+                                <svg class="w-5 h-5 text-gray-400 group-hover:text-[#ab715c] group-hover:translate-x-0.5 transition-all shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
+                            </a>
                         </div>
 
                         <!-- Eigene Buttons -->
@@ -1659,14 +2040,33 @@ const sqmModel = computed({
                             </div>
                         </div>
 
+                        <!-- AR Viewer -->
+                        <div class="bg-gradient-to-br from-[#1c1c1e] to-[#2c2c2e] rounded-[16px] p-5 shadow-[0_4px_20px_rgba(0,0,0,0.15)] text-white flex items-center justify-between cursor-pointer group hover:from-[#2c2c2e] hover:to-[#3c3c3e] transition-all" @click="openArViewer">
+                            <div>
+                                <h4 class="text-[14px] font-black tracking-widest uppercase mb-1">In AR ansehen</h4>
+                                <p class="text-[11px] text-gray-400 font-medium">Projiziere das Modell in deinen Raum</p>
+                            </div>
+                            <div class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center group-hover:scale-110 transition shrink-0">
+                                <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9" /></svg>
+                            </div>
+                        </div>
+
+                        <!-- Finanzierungsrechner -->
+                        <FinanceCalculator :apartment="activeApartment" :settings="project.calculator_settings" />
+
                     </div>
                     
                     <!-- Sticky Action Footer inside Slide-In -->
                     <div v-if="activeApartment" class="p-5 w-full bg-white border-t border-gray-100 sticky bottom-0 z-[72]">
-                        <button @click="openContactForm" class="w-full bg-[#99adc4] text-white py-3.5 rounded-[12px] font-bold flex justify-center items-center gap-2 hover:bg-[#869cb4] transition shadow-md">
-                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                            {{ project.contact_form_config?.title || 'Jetzt bewerben' }}
-                        </button>
+                        <div class="flex gap-2">
+                            <button @click="openContactForm" class="flex-1 bg-[#99adc4] text-white py-3.5 rounded-[12px] font-bold flex justify-center items-center gap-2 hover:bg-[#869cb4] transition shadow-md">
+                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                                {{ project.contact_form_config?.title || 'Jetzt bewerben' }}
+                            </button>
+                            <button v-if="project.openimmo_settings?.kontakt_telefon" @click="openWhatsApp(project.openimmo_settings.kontakt_telefon, activeApartment.name)" class="w-[60px] shrink-0 bg-[#25D366] text-white rounded-[12px] flex justify-center items-center hover:bg-[#128C7E] transition shadow-md" title="Via WhatsApp anfragen">
+                                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M12.012 2C6.486 2 2 6.486 2 12.012c0 1.761.458 3.447 1.325 4.966L2.11 21.841l4.981-1.285c1.472.782 3.129 1.196 4.836 1.196v-.001h.001C17.514 21.751 22 17.265 22 11.739 22 6.213 17.514 2 12.012 2zm0 18.064c-1.464 0-2.899-.379-4.148-1.094l-.297-.17-3.082.795.823-3.018-.186-.307c-.785-1.295-1.2-2.794-1.2-4.321 0-4.595 3.738-8.333 8.333-8.333 4.595 0 8.333 3.738 8.333 8.333s-3.738 8.333-8.333 8.333z"/><path d="M16.581 13.902c-.259-.13-1.536-.758-1.774-.845-.238-.087-.412-.13-.585.13-.173.26-.671.845-.823 1.018-.151.173-.303.195-.562.065-.259-.13-1.096-.404-2.088-1.287-.773-.688-1.295-1.538-1.447-1.798-.151-.26-.016-.401.113-.531.118-.118.259-.303.389-.454.13-.151.173-.26.26-.433.087-.173.043-.324-.022-.454-.065-.13-.585-1.408-.8-1.927-.211-.508-.426-.439-.585-.447-.151-.008-.324-.008-.497-.008s-.454.065-.692.324c-.238.26-.908.887-.908 2.163s.93 2.509 1.059 2.682c.13.173 1.828 2.794 4.428 3.894 2.214.938 2.607.758 3.083.715.476-.043 1.536-.628 1.752-1.234.216-.606.216-1.125.151-1.234-.064-.108-.238-.173-.497-.303z"/></svg>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </transition>
@@ -1845,21 +2245,29 @@ const sqmModel = computed({
             </transition>
 
             <!-- Sticky Footer Area mit Filter Count (Nur wenn NICHT in Detailansicht!) -->
-            <div v-show="!activeApartment" class="px-5 md:px-6 py-3 shrink-0 flex items-center gap-2 sticky bottom-0 bg-[#fbfbfb] z-[60] shadow-[0_-15px_20px_rgba(0,0,0,0.02)] w-full border-t border-gray-100">
-                <!-- Ohne Filter -->
-                <button @click="resetFilters" class="text-[13px] font-bold text-gray-400 hover:text-gray-800 transition whitespace-nowrap px-1">Filter zurücksetzen</button>
-                
-                <!-- Verfügbarkeit Toggle -->
-                <button @click="availabilityOnly = !availabilityOnly"
-                    :class="['flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-bold border transition ml-auto shrink-0', availabilityOnly ? 'bg-[#dcf0d5] text-[#3f6327] border-[#b2d9a1]' : 'bg-white text-gray-500 border-gray-200 hover:border-[#ab715c]']">
-                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    Nur verfügbare
-                </button>
+            <div v-show="!activeApartment" class="shrink-0 sticky bottom-0 bg-[#fbfbfb] z-[60] shadow-[0_-15px_20px_rgba(0,0,0,0.02)] w-full border-t border-gray-100">
+                <div class="px-5 md:px-6 py-3 flex items-center gap-2">
+                    <!-- Ohne Filter -->
+                    <button @click="resetFilters" class="text-[13px] font-bold text-gray-400 hover:text-gray-800 transition whitespace-nowrap px-1">Filter zurücksetzen</button>
+                    
+                    <!-- Verfügbarkeit Toggle -->
+                    <button @click="availabilityOnly = !availabilityOnly"
+                        :class="['flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-bold border transition ml-auto shrink-0', availabilityOnly ? 'bg-[#dcf0d5] text-[#3f6327] border-[#b2d9a1]' : 'bg-white text-gray-500 border-gray-200 hover:border-[#ab715c]']">
+                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        Nur verfügbare
+                    </button>
 
-                <button @click="scrollToApartments" class="bg-[#ab715c] text-white px-4 py-2 rounded-full font-bold text-[13px] flex items-center shadow-md hover:bg-[#8e5c4a] transition whitespace-nowrap shrink-0">
-                    <svg class="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
-                    {{ filteredApartmentsCount }} Anzeigen
-                </button>
+                    <button @click="scrollToApartments" class="bg-[#ab715c] text-white px-4 py-2 rounded-full font-bold text-[13px] flex items-center shadow-md hover:bg-[#8e5c4a] transition whitespace-nowrap shrink-0">
+                        <svg class="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+                        {{ filteredApartmentsCount }} Anzeigen
+                    </button>
+                </div>
+                <!-- Legal Footer Links -->
+                <div v-if="project.legal_settings?.impressum || project.legal_settings?.datenschutz" class="px-5 md:px-6 pb-2 flex items-center gap-3 text-[11px] text-gray-400">
+                    <button v-if="project.legal_settings?.impressum" @click="openLegal('impressum')" class="hover:text-gray-700 transition underline">Impressum</button>
+                    <span v-if="project.legal_settings?.impressum && project.legal_settings?.datenschutz">·</span>
+                    <button v-if="project.legal_settings?.datenschutz" @click="openLegal('datenschutz')" class="hover:text-gray-700 transition underline">Datenschutz</button>
+                </div>
             </div>
             
         </div>
@@ -1888,7 +2296,7 @@ const sqmModel = computed({
 
             <!-- Dynamic Views -->
             <div class="flex-1 w-full h-full relative">
-                <ThreeDFinder v-if="eventBus.activeView === '3d-finder'" :project="project" :active-apartment-id="activeApartment?.id" @apartment-click="openApartment" @deselect="closeApartment" @slider-click="openSliderPopup" @tour-click="openTourPopup" @video-click="v => activeVideo = v" />
+                <ThreeDFinder v-if="eventBus.activeView === '3d-finder'" :project="project" :active-apartment-id="activeApartment?.id" :is-video-open="!!activeVideo" :is-tour-open="!!activeTourPoint" @apartment-click="openApartment" @deselect="closeApartment" @slider-click="openSliderPopup" @tour-click="openTourPopup" @video-click="v => activeVideo = v" />
                 <FloorPlanView v-if="eventBus.activeView === 'etagenansicht'" :project="project" :active-apartment-id="activeApartment?.id" @apartment-click="openApartment" @deselect="closeApartment" @slider-click="openSliderPopup" @view-click="switchToView" @tour-click="openTourPopup" @video-click="v => activeVideo = v" />
             </div>
         </div>
@@ -1961,6 +2369,117 @@ const sqmModel = computed({
             </div>
         </transition>
 
+        <!-- FOMO Notification -->
+        <transition name="slide-up">
+            <div v-if="activeFomo" class="fixed bottom-6 left-6 z-[9999] bg-white rounded-2xl p-4 shadow-2xl border border-[#ab715c]/20 max-w-sm flex gap-4 items-center cursor-pointer hover:scale-105 transition-transform" @click="openApartment(activeFomo.apartment.id)">
+                <div class="w-12 h-12 rounded-full overflow-hidden shrink-0 border border-gray-100 shadow-inner relative">
+                    <img :src="activeFomo.apartment.media?.[0]?.original_url || 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=150&q=80'" class="w-full h-full object-cover">
+                    <!-- pulsing badge -->
+                    <div class="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-white animate-pulse"></div>
+                </div>
+                <div>
+                    <p class="text-[10px] font-bold text-red-500 tracking-widest uppercase mb-0.5">Gerade eben ⚡</p>
+                    <p class="text-[13px] font-semibold text-gray-800 leading-tight text-left">{{ activeFomo.message }}</p>
+                </div>
+            </div>
+        </transition>
+
+        <!-- Intro Popup (Z-Index fix) -->
+        <transition name="fade">
+            <div v-if="showPreviewPopup && projectPreviewImage" 
+                 class="fixed inset-0 z-[160] bg-black/80 flex items-center justify-center p-4 md:p-12 backdrop-blur-xl" 
+                 @click="showPreviewPopup = false">
+                <div class="relative max-w-5xl w-full aspect-[16/9] rounded-3xl overflow-hidden shadow-[0_0_80px_rgba(0,0,0,0.5)] border border-white/20 animate-in zoom-in-95 duration-700">
+                    <img :src="projectPreviewImage.original_url" class="absolute inset-0 w-full h-full object-cover" alt="Preview"/>
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-10 md:p-16">
+                        <h2 class="text-white text-4xl md:text-6xl font-black mb-4 tracking-tighter drop-shadow-2xl">{{ project.name }}</h2>
+                        <p class="text-white/80 text-lg md:text-xl font-medium max-w-2xl mb-8 leading-relaxed drop-shadow-lg">{{ project.description }}</p>
+                        <div class="h-1.5 w-full bg-white/20 rounded-full overflow-hidden">
+                            <div class="h-full bg-white animate-[load_5s_linear]"></div>
+                        </div>
+                    </div>
+                    <button class="absolute top-8 right-8 text-white/50 hover:text-white transition">
+                        <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor font-bold"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+            </div>
+        </transition>
+
+        <!-- Legal Modal -->
+        <DialogModal :show="showLegalModal" @close="showLegalModal = false" maxWidth="2xl">
+            <template #title>
+                <div class="flex items-center gap-3">
+                    <InformationCircleIcon class="w-6 h-6 text-[#ab715c]" />
+                    <span>{{ legalModalType === 'impressum' ? 'Impressum' : 'Datenschutz' }}</span>
+                </div>
+            </template>
+            <template #content>
+                <div class="prose prose-sm max-w-none text-gray-700 leading-relaxed py-4" v-html="legalContent"></div>
+                <div v-if="!legalContent" class="text-center text-gray-400 py-8">
+                    <p>Noch kein Inhalt hinterlegt.</p>
+                </div>
+            </template>
+            <template #footer>
+                <SecondaryButton @click="showLegalModal = false">Schließen</SecondaryButton>
+            </template>
+        </DialogModal>
+
+        <!-- QR Code Modal -->
+        <DialogModal :show="showQrCode" @close="showQrCode = false" maxWidth="md">
+            <template #title>
+                <div class="flex justify-center flex-col items-center pt-4">
+                    <h3 class="text-xl font-bold font-black tracking-tight text-gray-900">Projekt QR-Code</h3>
+                    <p class="text-sm text-gray-400 font-medium">Perfekt für Exposés oder Bauschilder</p>
+                </div>
+            </template>
+            <template #content>
+                <div class="flex flex-col items-center pb-6">
+                    <div class="bg-white p-4 rounded-3xl shadow-sm border border-gray-100">
+                        <img :src="`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(projectQrUrl)}`" alt="QR Code" class="w-64 h-64" />
+                    </div>
+                </div>
+            </template>
+            <template #footer>
+                <div class="flex justify-center w-full">
+                    <SecondaryButton @click="showQrCode = false">Schließen</SecondaryButton>
+                </div>
+            </template>
+        </DialogModal>
+
+        <!-- AR Viewer Modal -->
+        <transition name="fade">
+            <div v-if="showArViewer" class="fixed inset-0 z-[200] bg-black/95 flex flex-col backdrop-blur-md">
+                <div class="px-6 py-4 flex justify-between items-center text-white shrink-0 border-b border-white/10 relative z-50 pointer-events-none">
+                    <div class="pointer-events-auto">
+                        <h3 class="font-bold text-[19px]">Augmented Reality</h3>
+                        <p class="text-[13px] text-gray-400 font-medium tracking-wide">Modell in deinem Raum platzieren</p>
+                    </div>
+                    <button @click="showArViewer = false" class="pointer-events-auto w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition text-white/70 hover:text-white border border-white/20">
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+                
+                <div class="flex-1 relative flex items-center justify-center">
+                    <model-viewer
+                        :src="arModelSrc"
+                        ar
+                        ar-modes="webxr scene-viewer quick-look"
+                        camera-controls
+                        auto-rotate
+                        shadow-intensity="1"
+                        class="w-full h-full bg-black/50"
+                    >
+                        <div class="absolute bottom-8 left-1/2 -translate-x-1/2 flex justify-center">
+                            <button slot="ar-button" class="bg-white text-black px-6 py-3 rounded-full font-bold shadow-2xl flex items-center gap-2 hover:scale-105 transition-transform">
+                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9" /></svg>
+                                AR Modus starten
+                            </button>
+                        </div>
+                    </model-viewer>
+                </div>
+            </div>
+        </transition>
+
         <!-- IFrame Modal -->
         <transition name="fade">
             <div v-if="activeIframe" class="fixed inset-0 z-[160] bg-black/80 flex items-center justify-center p-4 md:p-10 backdrop-blur-md" @click.self="activeIframe = null">
@@ -1989,25 +2508,37 @@ const sqmModel = computed({
 
 
         <div v-if="project.floating_bar?.active && project.floating_bar?.buttons?.length" 
-             class="fixed z-[90] flex flex-col items-center gap-3 transition-all duration-500"
+             class="fixed z-[90] flex items-center gap-3 transition-all duration-500"
              :class="{
-                'right-6 top-1/2 -translate-y-1/2': project.floating_bar.position === 'right',
-                'right-6 bottom-8': project.floating_bar.position === 'right_bottom',
-                'left-6 top-1/2 -translate-y-1/2': project.floating_bar.position === 'left',
-                'left-6 bottom-8': project.floating_bar.position === 'left_bottom',
-             }">
+                // Base structure (Desktop)
+                'md:flex-col': true,
+                'md:right-6 md:top-1/2 md:-translate-y-1/2': project.floating_bar.position === 'right',
+                'md:right-6 md:bottom-8': project.floating_bar.position === 'right_bottom',
+                'md:left-6 md:top-1/2 md:-translate-y-1/2': project.floating_bar.position === 'left',
+                'md:left-6 md:bottom-8': project.floating_bar.position === 'left_bottom',
+                
+                // Mobile layout overrides
+                'flex-col right-6 bottom-8': project.floating_bar.position_mobile === 'right_bottom' || (!project.floating_bar.position_mobile && project.floating_bar.position.includes('right')),
+                'flex-col left-6 bottom-8': project.floating_bar.position_mobile === 'left_bottom' || (!project.floating_bar.position_mobile && project.floating_bar.position.includes('left')),
+                'flex-row bottom-0 left-0 right-0 w-full justify-between pb-safe z-[100] bg-white border-t border-gray-100 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]': project.floating_bar.position_mobile === 'bottom_bar',
+                'hidden md:flex': project.floating_bar.position_mobile === 'hidden'
+             }" :style="project.floating_bar.position_mobile === 'bottom_bar' ? { backgroundColor: (project.floating_bar.bg_color || '#ffffff') } : {}">
              
             <!-- Optional Logo -->
-            <div v-if="projectLogo && project.floating_bar.show_logo !== false">
+            <div v-if="projectLogo && project.floating_bar.show_logo !== false && project.floating_bar.position_mobile !== 'bottom_bar'" class="hidden md:block">
                 <img :src="projectLogo.original_url" alt="Logo" class="object-contain drop-shadow-sm" 
                      :style="{ maxWidth: (project.floating_bar.logo_width || 80) + 'px' }" />
             </div>
 
             <!-- Floating Pill Base -->
-            <div class="flex flex-col gap-2 p-2 rounded-full shadow-[0_10px_40px_rgba(0,0,0,0.15)] backdrop-blur-md border border-white/20"
-                 :style="{ backgroundColor: (project.floating_bar.bg_color || '#ffffff') + 'dd' }">
+            <div class="flex gap-2 p-2 shadow-[0_10px_40px_rgba(0,0,0,0.15)] backdrop-blur-md border border-white/20 transition-all duration-300 w-full"
+                 :class="{
+                     'flex-col rounded-full w-auto': project.floating_bar.position_mobile !== 'bottom_bar',
+                     'flex-row justify-around rounded-none shadow-none border-0 w-full !bg-transparent': project.floating_bar.position_mobile === 'bottom_bar'
+                 }"
+                 :style="project.floating_bar.position_mobile !== 'bottom_bar' ? { backgroundColor: (project.floating_bar.bg_color || '#ffffff') + 'dd' } : {}">
                  
-                <div v-for="btn in project.floating_bar.buttons" :key="btn.id" class="relative group isolate">
+                <div v-for="btn in project.floating_bar.buttons" :key="btn.id" class="relative group isolate" :class="{'flex-1 flex justify-center': project.floating_bar.position_mobile === 'bottom_bar'}">
                  
                 <!-- Hover Label Pill -->
                 <div class="absolute top-1/2 -translate-y-1/2 pointer-events-none opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center shadow-lg rounded-full font-bold text-[13px] whitespace-nowrap overflow-hidden z-0"
@@ -2049,23 +2580,38 @@ const sqmModel = computed({
                 </div>
             </template>
             <template #content>
-                <p class="text-[13px] text-gray-500 mb-6 font-medium leading-relaxed">{{ project.contact_form_config?.subtitle || 'Möchten Sie weitere Informationen erhalten? Kontaktieren Sie uns.' }}</p>
-                <form @submit.prevent="submitContactForm" class="grid grid-cols-2 gap-4">
-                    <div v-for="field in (project.contact_form_config?.fields || [])" :key="field.id" :class="field.width === 'half' ? 'col-span-1' : 'col-span-2'">
-                        <InputLabel :for="'contact_'+field.id">
-                            {{ field.label }} 
-                            <span v-if="field.required" class="text-red-500 ml-0.5">*</span>
-                        </InputLabel>
-                        <textarea v-if="field.type === 'textarea'" :id="'contact_'+field.id" v-model="contactForm.fields[field.id]" :required="field.required" rows="4" class="mt-1 block w-full border-gray-300 focus:border-[#ab715c] focus:ring-[#ab715c] rounded-[10px] shadow-sm text-sm"></textarea>
-                        <TextInput v-else :type="field.type" :id="'contact_'+field.id" v-model="contactForm.fields[field.id]" :required="field.required" class="mt-1 block w-full rounded-[10px]" />
-                        <!-- Assuming dynamic error handling by iterating object is complex, generic error for whole form if needed -->
+                <div v-if="contactForm.wasSuccessful" class="text-center py-6 animate-in fade-in zoom-in duration-300">
+                    <div class="mx-auto w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mb-5">
+                        <svg class="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
                     </div>
-                    
-                    <div class="col-span-2 mt-4 pt-4 border-t border-gray-100 flex gap-3">
-                        <SecondaryButton @click="showContactForm = false" type="button" class="w-full justify-center py-3 rounded-[10px] shadow-sm border-gray-200">Abbrechen</SecondaryButton>
-                        <button type="submit" :disabled="contactForm.processing" class="w-full bg-[#ab715c] text-white py-3 rounded-[10px] shadow-sm font-bold flex items-center justify-center transition" :class="contactForm.processing ? 'opacity-50' : 'hover:bg-[#8e5c4a]'">Anfrage senden</button>
-                    </div>
-                </form>
+                    <h3 class="text-xl font-bold text-gray-900 mb-2">Erfolgreich gesendet!</h3>
+                    <p class="text-[15px] font-medium text-gray-500 leading-relaxed max-w-[90%] mx-auto">{{ project.contact_form_config?.success_message || 'Ihre Anfrage wurde erfolgreich an uns übermittelt. Wir melden uns in Kürze bei Ihnen zurück.' }}</p>
+                    <button @click="showContactForm = false; contactForm.wasSuccessful = false" class="mt-8 px-8 py-2.5 bg-gray-100 font-bold text-gray-700 rounded-full hover:bg-gray-200 transition active:scale-95">Schließen</button>
+                </div>
+                <div v-else>
+                    <p class="text-[13px] text-gray-500 mb-6 font-medium leading-relaxed">{{ project.contact_form_config?.subtitle || 'Möchten Sie weitere Informationen erhalten? Kontaktieren Sie uns.' }}</p>
+                    <form @submit.prevent="submitContactForm" class="grid grid-cols-2 gap-4">
+                        <div v-for="field in (project.contact_form_config?.fields || [])" :key="field.id" :class="field.width === 'half' ? 'col-span-1' : 'col-span-2'">
+                            <InputLabel :for="'contact_'+field.id">
+                                {{ field.label }} 
+                                <span v-if="field.required" class="text-red-500 ml-0.5">*</span>
+                            </InputLabel>
+                            <textarea v-if="field.type === 'textarea'" :id="'contact_'+field.id" v-model="contactForm.fields[field.id]" :required="field.required" rows="4" class="mt-1 block w-full border-gray-300 focus:border-[#ab715c] focus:ring-[#ab715c] rounded-[10px] shadow-sm text-sm"></textarea>
+                            <TextInput v-else :type="field.type" :id="'contact_'+field.id" v-model="contactForm.fields[field.id]" :required="field.required" class="mt-1 block w-full rounded-[10px]" />
+                        </div>
+                        
+                        <div class="col-span-2 mt-4 pt-4 border-t border-gray-100 flex gap-3">
+                            <SecondaryButton @click="showContactForm = false" type="button" class="w-full justify-center py-3 rounded-[10px] shadow-sm border-gray-200">Abbrechen</SecondaryButton>
+                            <button type="submit" :disabled="contactForm.processing" class="w-full bg-[#ab715c] py-3 rounded-[10px] shadow-sm font-bold flex items-center justify-center transition" :class="contactForm.processing ? 'opacity-70 cursor-not-allowed' : 'hover:scale-[1.02] active:scale-95'" :style="{ color: primaryContrast + ' !important' }">
+                                <svg v-if="contactForm.processing" class="animate-spin -ml-1 mr-2 h-4 w-4 text-current" fill="none" viewBox="0 0 24 24">
+                                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                                </svg>
+                                {{ contactForm.processing ? 'Wird gesendet...' : 'Anfrage senden' }}
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </template>
         </DialogModal>
 

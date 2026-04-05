@@ -18,12 +18,49 @@ class Apartment extends Model implements HasMedia
         'project_id', 'house_id', 'floor_id', 'best_view_id', 'best_frame_id',
         'name', 'rooms', 'bathrooms', 'sqm', 'marketing_type', 'status', 'price', 'warm_rent',
         'available_from', 'outdoor_area', 'additional_costs', 'description', 'virtual_tour_url', 'external_contact_url',
-        'custom_buttons'
+        'custom_buttons', 'external_property_id'
     ];
 
     protected $casts = [
         'custom_buttons' => 'array',
     ];
+
+    protected static function booted()
+    {
+        static::updated(function ($apartment) {
+            if ($apartment->isDirty('status')) {
+                \App\Models\ApartmentStatusLog::create([
+                    'apartment_id' => $apartment->id,
+                    'old_status'   => $apartment->getOriginal('status') ?: 'Frei',
+                    'new_status'   => $apartment->status,
+                ]);
+
+                // Notify project admins about status change
+                $project = $apartment->project;
+                if ($project) {
+                    $admins = $project->users()->wherePivot('role', 'admin')->get();
+                    foreach ($admins as $admin) {
+                        $admin->notify(new \App\Notifications\ApartmentStatusChangedNotification(
+                            $apartment,
+                            $apartment->getOriginal('status') ?: 'Frei',
+                            $apartment->status
+                        ));
+                    }
+                }
+
+                // Activity log
+                \App\Models\ActivityLog::log('status_changed', $apartment, [
+                    'old' => $apartment->getOriginal('status') ?: 'Frei',
+                    'new' => $apartment->status,
+                ], $apartment->name);
+            }
+        });
+    }
+
+    public function statusLogs(): HasMany
+    {
+        return $this->hasMany(ApartmentStatusLog::class)->orderBy('created_at', 'desc');
+    }
 
     public function project(): BelongsTo
     {
@@ -60,9 +97,44 @@ class Apartment extends Model implements HasMedia
         return $this->hasMany(ApartmentImageGroup::class)->orderBy('sort_order');
     }
 
-    public function roomsList(): HasMany
+    public function contacts(): BelongsToMany
     {
-        return $this->hasMany(Room::class);
+        return $this->belongsToMany(Contact::class, 'apartment_contact')
+            ->withPivot('notify_on_inquiry', 'sort_order')
+            ->withTimestamps();
     }
 
+    public function roomsList(): HasMany
+    {
+        return $this->hasMany(Room::class)->orderBy('sort_order');
+    }
+
+    public function externalProperty(): BelongsTo
+    {
+        return $this->belongsTo(ExternalProperty::class);
+    }
+
+    public function syncFromExternal()
+    {
+        if (!$this->external_property_id || !$this->externalProperty) {
+            return;
+        }
+
+        $ext = $this->externalProperty;
+        
+        $this->update(array_filter([
+            'name' => $ext->name,
+            'rooms' => $ext->rooms,
+            'bathrooms' => $ext->bathrooms,
+            'sqm' => $ext->sqm,
+            'marketing_type' => $ext->marketing_type,
+            'status' => $ext->status,
+            'price' => $ext->price,
+            'warm_rent' => $ext->warm_rent,
+            'available_from' => $ext->available_from,
+            'outdoor_area' => $ext->outdoor_area,
+            'additional_costs' => $ext->additional_costs,
+            'description' => $ext->description,
+        ], fn($value) => !is_null($value)));
+    }
 }

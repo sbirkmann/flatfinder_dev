@@ -12,6 +12,13 @@ Sie haben eine neue Bewerbung / Kontaktanfrage über die Projektwebseite erhalte
 - **Telefon:** {{ $inquiry->phone }}
 @endif
 
+@if($inquiry->visitor)
+**Lead-Analyse:**
+- **Potential:** {{ $inquiry->visitor->lead_label }}
+- **Lead Score:** {{ $inquiry->visitor->lead_score }} / 100
+- **Verhalten:** {{ $inquiry->visitor->visit_count }} Besuche, {{ $inquiry->visitor->apartments_viewed }} Whg. angesehen
+@endif
+
 @if($inquiry->apartment)
 **Anfrage zu Wohnung:** {{ $inquiry->apartment->name }}
 @endif

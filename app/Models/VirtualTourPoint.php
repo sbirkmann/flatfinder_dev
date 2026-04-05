@@ -10,7 +10,7 @@ class VirtualTourPoint extends Model implements HasMedia
 {
     use InteractsWithMedia;
 
-    protected $fillable = ['virtual_tour_id', 'name', 'hotspots', 'sort_index', 'minimap_x', 'minimap_y'];
+    protected $fillable = ['virtual_tour_id', 'name', 'hotspots', 'sort_index', 'minimap_x', 'minimap_y', 'initial_yaw', 'initial_pitch', 'initial_fov'];
     
     protected $casts = [
         'hotspots' => 'array',

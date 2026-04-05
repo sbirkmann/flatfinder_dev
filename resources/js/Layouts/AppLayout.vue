@@ -1,12 +1,17 @@
 <script setup>
 import { ref } from 'vue';
-import { Head, Link, router } from '@inertiajs/vue3';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import ApplicationMark from '@/Components/ApplicationMark.vue';
 import Banner from '@/Components/Banner.vue';
 import Dropdown from '@/Components/Dropdown.vue';
 import DropdownLink from '@/Components/DropdownLink.vue';
 import NavLink from '@/Components/NavLink.vue';
 import ResponsiveNavLink from '@/Components/ResponsiveNavLink.vue';
+import GlobalSearch from '@/Components/GlobalSearch.vue';
+import NotificationBell from '@/Components/NotificationBell.vue';
+import ToastNotification from '@/Components/ToastNotification.vue';
+
+const page = usePage();
 
 defineProps({
     title: String,
@@ -60,13 +65,19 @@ const logout = () => {
                                 <NavLink :href="route('inquiries.index')" :active="route().current('inquiries.*')">
                                     Anfragen
                                 </NavLink>
+
                                 <NavLink v-if="$page.props.auth.user.is_superadmin" :href="route('users.index')" :active="route().current('users.*')">
                                     Benutzer
                                 </NavLink>
                             </div>
                         </div>
 
-                        <div class="hidden sm:flex sm:items-center sm:ms-6">
+                        <div class="hidden sm:flex sm:items-center sm:ms-6 gap-3">
+                            <!-- Global Search -->
+                            <GlobalSearch />
+
+                            <!-- Notification Bell -->
+                            <NotificationBell :initial-count="page.props.unreadNotificationCount || 0" />
                             <div class="ms-3 relative">
                                 <!-- Teams Dropdown -->
                                 <Dropdown v-if="$page.props.jetstream.hasTeamFeatures" align="right" width="60">
@@ -215,6 +226,7 @@ const logout = () => {
                         <ResponsiveNavLink :href="route('inquiries.index')" :active="route().current('inquiries.*')">
                             Anfragen
                         </ResponsiveNavLink>
+
                     </div>
 
                     <!-- Responsive Settings Options -->
@@ -306,5 +318,8 @@ const logout = () => {
                 <slot />
             </main>
         </div>
+
+        <!-- Toast Notifications -->
+        <ToastNotification />
     </div>
 </template>

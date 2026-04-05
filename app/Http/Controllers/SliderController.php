@@ -91,4 +91,15 @@ class SliderController extends Controller
         $slide->delete();
         return back()->with('success', 'Slide gelöscht.');
     }
+
+    public function reorderSlides(Request $request, Project $project, Slider $slider)
+    {
+        $request->validate(['order' => 'required|array']);
+
+        foreach ($request->order as $index => $slideId) {
+            Slide::where('id', $slideId)->where('slider_id', $slider->id)->update(['sort' => $index]);
+        }
+
+        return back()->with('success', 'Reihenfolge aktualisiert.');
+    }
 }

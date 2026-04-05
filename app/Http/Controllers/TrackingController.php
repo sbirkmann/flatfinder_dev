@@ -22,6 +22,7 @@ class TrackingController extends Controller
             'device'            => 'nullable|string|max:20',
             'language'          => 'nullable|string|max:10',
             'referrer'          => 'nullable|string|max:500',
+            'campaign'          => 'nullable|string|max:100',
             'screen_resolution' => 'nullable|string|max:20',
         ]);
 
@@ -45,6 +46,7 @@ class TrackingController extends Controller
                 'device'            => $validated['device'] ?? null,
                 'language'          => $validated['language'] ?? null,
                 'referrer'          => $validated['referrer'] ?? null,
+                'campaign'          => $validated['campaign'] ?? null,
                 'screen_resolution' => $validated['screen_resolution'] ?? null,
                 'last_visit_at'     => now(),
             ]
@@ -105,6 +107,16 @@ class TrackingController extends Controller
 
         // --- Aggregations ---
 
+        $apartments = \App\Models\Apartment::where('project_id', $projectId)->get();
+        $statusDistribution = $apartments->groupBy(function($ap) {
+            return $ap->status ?: 'Frei'; // fallback
+        })->map(fn($g) => $g->count());
+
+        $totalVolume = $apartments->sum('price');
+        $availableVolume = $apartments->filter(fn($a) => in_array($a->status, ['Frei', null, '']))->sum('price');
+        $soldVolume = $apartments->filter(fn($a) => $a->status === 'Verkauft')->sum('price');
+        $reservedVolume = $apartments->filter(fn($a) => $a->status === 'Reserviert')->sum('price');
+
         // Events by type
         $eventsByType = $events->groupBy('event_type')->map(fn($g) => $g->count());
 
@@ -118,12 +130,56 @@ class TrackingController extends Controller
             ->map(fn($g) => $g->count())
             ->sortKeys();
 
+        // Leads per day
+        $leadsPerDay = $events->where('event_type', 'contact_click')
+            ->groupBy(fn($e) => $e->created_at->toDateString())
+            ->map(fn($g) => $g->count())
+            ->sortKeys();
+
         // Top apartments viewed
         $topApartments = $events->where('event_type', 'apartment_view')
             ->groupBy('target_id')
             ->map(fn($g) => $g->count())
             ->sortDesc()
             ->take(20);
+
+        // Interaction Density by House (Target type = 'house')
+        $houseInteractions = $events->where('target_type', 'house')
+            ->groupBy('target_id')
+            ->map(fn($g) => $g->count())
+            ->sortDesc();
+
+        // Interaction Density by Floor (Target type = 'floor')
+        $floorInteractions = $events->where('target_type', 'floor')
+            ->groupBy('target_id')
+            ->map(fn($g) => $g->count())
+            ->sortDesc();
+
+        // Interaction Density by Layer (Target type = 'layer')
+        $layerInteractions = $events->where('target_type', 'layer')
+            ->groupBy('target_id')
+            ->map(fn($g) => $g->count())
+            ->sortDesc();
+
+        // Filter Actions Used
+        $filterUsage = $events->where('event_type', 'filter_used')
+            ->map(fn($e) => $e->meta ?? [])
+            ->collapse() // flattens all keys, this might just group meta keys
+            ->toArray();
+        
+        $filterCounts = [];
+        if (!empty($filterUsage)) {
+            // Count frequency of certain filter keys being used
+            foreach ($events->where('event_type', 'filter_used') as $fcEvent) {
+                if ($fcEvent->meta) {
+                    foreach ($fcEvent->meta as $fk => $fv) {
+                        if (!isset($filterCounts[$fk])) $filterCounts[$fk] = 0;
+                        $filterCounts[$fk]++;
+                    }
+                }
+            }
+        }
+        arsort($filterCounts);
 
         // Browser breakdown
         $browsers = $visitors->groupBy('browser')->map(fn($g) => $g->count())->sortDesc();
@@ -137,40 +193,200 @@ class TrackingController extends Controller
         // Language breakdown
         $languages = $visitors->groupBy('language')->map(fn($g) => $g->count())->sortDesc();
 
-        // Referrer breakdown
-        $referrers = $visitors->groupBy(fn($v) => $v->referrer ? parse_url($v->referrer, PHP_URL_HOST) ?? $v->referrer : 'Direkt')
+        // Referrer Breakdown (Excluding internal traffic)
+        $host = $request->getHost();
+        $referrers = $visitors->whereNotNull('referrer')
+            ->map(function($v) use ($host) {
+                $refHost = parse_url($v->referrer, PHP_URL_HOST) ?: $v->referrer;
+                // Normalize some common ones
+                if (str_contains($refHost, 'google.')) return 'Google Search';
+                if (str_contains($refHost, 'facebook.com') || str_contains($refHost, 'fb.me')) return 'Facebook';
+                if (str_contains($refHost, 'instagram.com')) return 'Instagram';
+                if (str_contains($refHost, 'linkedin.com')) return 'LinkedIn';
+                if (str_contains($refHost, 'immowelt.de')) return 'Immowelt';
+                if (str_contains($refHost, 'immobilienscout24.de')) return 'ImmoScout24';
+                if ($refHost === $host) return null; // Internal
+                return $refHost;
+            })
+            ->filter()
+            ->groupBy(fn($r) => $r)
             ->map(fn($g) => $g->count())
             ->sortDesc();
 
-        // Recent visitors (last 50)
+        // Campaign Breakdown
+        $campaigns = $visitors->whereNotNull('campaign')
+            ->groupBy('campaign')
+            ->map(function($group) use ($events) {
+                $visitorIds = $group->pluck('id');
+                return [
+                    'visitors' => count($group),
+                    'leads' => $events->where('event_type', 'contact_click')->whereIn('visitor_id', $visitorIds)->count(),
+                    'conversion_rate' => count($group) > 0 
+                        ? round(($events->where('event_type', 'contact_click')->whereIn('visitor_id', $visitorIds)->count() / count($group)) * 100, 1) 
+                        : 0
+                ];
+            })
+            ->sortDesc();
+
+        // Recent visitors (last 50) – with lead scoring & sanitized for JSON
         $recentVisitors = Visitor::where('project_id', $projectId)
+            ->with(['events' => fn($q) => $q->orderByDesc('created_at')->limit(100)])
             ->orderByDesc('last_visit_at')
             ->limit(50)
-            ->get();
+            ->get()
+            ->map(fn($v) => [
+                'id' => $v->id,
+                'fingerprint' => $v->fingerprint,
+                'ip' => $v->ip,
+                'browser' => $v->browser,
+                'device' => $v->device,
+                'os' => $v->os,
+                'visit_count' => $v->visit_count,
+                'last_visit_at' => $v->last_visit_at->toIso8601String(),
+                'lead_score' => $v->lead_score,
+                'lead_label' => $v->lead_label,
+                'events_count' => $v->events->count(),
+                'timeline' => $v->activity_timeline, // Already sanitized array
+            ]);
 
-        // Recent events (last 100)
+        // Recent events (last 100) – sanitized to avoid circular Visitor relation
         $recentEvents = VisitorEvent::where('project_id', $projectId)
-            ->with('visitor:id,fingerprint,browser,device,ip')
             ->orderByDesc('created_at')
             ->limit(100)
+            ->get()
+            ->map(fn($ev) => [
+                'id' => $ev->id,
+                'created_at' => $ev->created_at->toIso8601String(),
+                'event_type' => $ev->event_type,
+                'target_type' => $ev->target_type,
+                'target_id' => $ev->target_id,
+                'meta' => $ev->meta,
+                'visitor' => [
+                    'id' => $ev->visitor_id,
+                    'fingerprint' => $ev->visitor?->fingerprint ?? 'Unknown',
+                    'device' => $ev->visitor?->device ?? '–',
+                    'browser' => $ev->visitor?->browser ?? '–',
+                ]
+            ]);
+
+        $totalLeads = $events->where('event_type', 'contact_click')->count();
+
+        // Sales Performance Analytics
+        $statusLogs = \App\Models\ApartmentStatusLog::whereIn('apartment_id', $apartments->pluck('id'))->get();
+
+        $salesVelocity = $statusLogs->where('new_status', 'Verkauft')
+            ->groupBy(fn($l) => $l->created_at->format('Y-m'))
+            ->map(fn($g) => $g->count())
+            ->sortKeys();
+
+        $cancellations = $statusLogs->where('old_status', 'Reserviert')
+            ->where('new_status', 'Frei')
+            ->count();
+
+        $soldOrReservedLogs = $statusLogs->whereIn('new_status', ['Verkauft', 'Reserviert']);
+        $totalDays = 0;
+        $countLogs = 0;
+        foreach ($soldOrReservedLogs as $log) {
+            $apartment = $apartments->firstWhere('id', $log->apartment_id);
+            if ($apartment) {
+                $days = $apartment->created_at->diffInDays($log->created_at);
+                $totalDays += max($days, 0);
+                $countLogs++;
+            }
+        }
+        $avgTimeOnMarket = $countLogs > 0 ? round($totalDays / $countLogs) : 0;
+
+        // --- Lead-Scoring ---
+        $allScoredVisitors = Visitor::where('project_id', $projectId)
+            ->with('events')
+            ->orderByDesc('last_visit_at')
             ->get();
 
+        $topLeads = $allScoredVisitors
+            ->sortByDesc('lead_score')
+            ->take(20)
+            ->map(fn($v) => [
+                'id' => $v->id,
+                'fingerprint' => $v->fingerprint,
+                'ip' => $v->ip,
+                'browser' => $v->browser,
+                'device' => $v->device,
+                'os' => $v->os,
+                'visit_count' => $v->visit_count,
+                'first_visit_at' => $v->first_visit_at,
+                'last_visit_at' => $v->last_visit_at,
+                'lead_score' => $v->lead_score,
+                'lead_label' => $v->lead_label,
+                'events_count' => $v->events->count(),
+                'apartments_viewed' => $v->events->where('event_type', 'apartment_view')->pluck('target_id')->unique()->count(),
+                'favorites_count' => $v->events->where('event_type', 'favorite')->count(),
+                'interests' => $v->interests,
+                'budget_summary' => $v->budget_summary,
+            ])
+            ->values();
+
+        $scoreDistribution = [
+            'hot' => $allScoredVisitors->where('lead_score', '>=', 70)->count(),
+            'warm' => $allScoredVisitors->where('lead_score', '>=', 45)->where('lead_score', '<', 70)->count(),
+            'interested' => $allScoredVisitors->where('lead_score', '>=', 20)->where('lead_score', '<', 45)->count(),
+            'cold' => $allScoredVisitors->where('lead_score', '<', 20)->count(),
+        ];
+
+        // --- Matchmaker ---
+        $matchingService = new \App\Services\MatchingService();
+        $matches = $matchingService->findTopMatches($projectId);
+
+        $matchSummary = [
+            'total_high_intent' => count($matches),
+            'top_performing_unit_id' => collect($matches)->groupBy('apartment_id')->map->count()->sortDesc()->keys()->first(),
+            'avg_match_score' => collect($matches)->avg('score'),
+            'top_performing_unit_name' => $apartments->find(collect($matches)->groupBy('apartment_id')->map->count()->sortDesc()->keys()->first())?->name ?? 'N/A',
+        ];
+
         return response()->json([
+            'matchmaker' => $matches,
+            'matchmaker_summary' => $matchSummary,
             'summary' => [
                 'total_visitors'    => $visitors->count(),
                 'total_events'      => $events->count(),
                 'returning_visitors'=> $visitors->where('visit_count', '>', 1)->count(),
                 'avg_events_per_visitor' => $visitors->count() ? round($events->count() / $visitors->count(), 1) : 0,
+                'total_leads'       => $totalLeads,
+                'conversion_rate'   => $visitors->count() ? round(($totalLeads / $visitors->count()) * 100, 1) : 0,
+            ],
+            'portfolio' => [
+                'distribution' => $statusDistribution,
+                'volume' => [
+                    'total' => $totalVolume,
+                    'available' => $availableVolume,
+                    'sold' => $soldVolume,
+                    'reserved' => $reservedVolume,
+                ]
+            ],
+            'sales_performance' => [
+                'sales_velocity' => $salesVelocity,
+                'cancellations'   => $cancellations,
+                'avg_time_on_market_days' => $avgTimeOnMarket,
+            ],
+            'lead_scoring' => [
+                'top_leads' => $topLeads,
+                'distribution' => $scoreDistribution,
             ],
             'events_by_type'   => $eventsByType,
             'events_per_day'   => $eventsPerDay,
             'visitors_per_day' => $visitorsPerDay,
+            'leads_per_day'    => $leadsPerDay,
             'top_apartments'   => $topApartments,
+            'house_interactions' => $houseInteractions,
+            'floor_interactions' => $floorInteractions,
+            'layer_interactions' => $layerInteractions,
+            'filter_usage'     => collect($filterCounts)->take(10),
             'browsers'         => $browsers,
             'devices'          => $devices,
             'countries'        => $countries,
             'languages'        => $languages,
             'referrers'        => $referrers,
+            'campaigns'        => $campaigns,
             'recent_visitors'  => $recentVisitors,
             'recent_events'    => $recentEvents,
         ]);

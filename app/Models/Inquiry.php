@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Inquiry extends Model
 {
     protected $fillable = [
-        'team_id', 'project_id', 'house_id', 'apartment_id',
+        'team_id', 'project_id', 'house_id', 'apartment_id', 'visitor_id',
         'name', 'email', 'phone', 'message',
         'status', 'source', 'notes', 'read_at',
     ];
@@ -21,6 +21,7 @@ class Inquiry extends Model
     public function project(): BelongsTo   { return $this->belongsTo(Project::class); }
     public function house(): BelongsTo     { return $this->belongsTo(House::class); }
     public function apartment(): BelongsTo { return $this->belongsTo(Apartment::class); }
+    public function visitor(): BelongsTo   { return $this->belongsTo(\App\Models\Visitor::class); }
 
     public function getStatusLabelAttribute(): string
     {

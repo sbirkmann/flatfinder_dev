@@ -23,10 +23,12 @@
     },
     "dependencies": {
         "@heroicons/vue": "^2.2.0",
+        "@huggingface/transformers": "^4.0.1",
         "@photo-sphere-viewer/core": "^5.14.1",
         "@photo-sphere-viewer/markers-plugin": "^5.14.1",
         "@vueup/vue-quill": "^1.2.0",
         "leaflet": "^1.9.4",
+        "three": "^0.183.2",
         "vuedraggable": "^4.1.0"
     }
 }

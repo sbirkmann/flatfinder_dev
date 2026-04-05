@@ -46,9 +46,12 @@ class VirtualTourController extends Controller
             'name' => 'sometimes|string|max:255',
             'hotspots' => 'nullable|array',
             'minimap_x' => 'nullable|numeric',
-            'minimap_y' => 'nullable|numeric'
+            'minimap_y' => 'nullable|numeric',
+            'initial_yaw' => 'nullable|numeric',
+            'initial_pitch' => 'nullable|numeric',
+            'initial_fov' => 'nullable|numeric'
         ]);
-        $virtualTourPoint->update($request->only('name', 'hotspots', 'minimap_x', 'minimap_y'));
+        $virtualTourPoint->update($request->only('name', 'hotspots', 'minimap_x', 'minimap_y', 'initial_yaw', 'initial_pitch', 'initial_fov'));
 
         if ($request->wantsJson() || $request->isXmlHttpRequest()) {
             return response()->json(['success' => true]);

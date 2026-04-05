@@ -18,13 +18,16 @@ class ContactController extends Controller
     public function index()
     {
         $contacts = Contact::where('team_id', $this->teamId())
-            ->with('media')
+            ->with(['media', 'user:id,name'])
             ->withCount('projects')
             ->orderBy('name')
             ->get();
 
+        $users = \App\Models\User::where('current_team_id', $this->teamId())->get(['id', 'name', 'email']);
+
         return Inertia::render('Contacts/Index', [
             'contacts' => $contacts,
+            'users' => $users,
         ]);
     }
 
@@ -36,9 +39,15 @@ class ContactController extends Controller
             'phone'    => 'nullable|string|max:50',
             'position' => 'nullable|string|max:100',
             'notes'    => 'nullable|string|max:2000',
+            'avatar'   => 'nullable|image|max:8192',
+            'user_id'  => 'nullable|exists:users,id',
         ]);
 
         $contact = Contact::create(array_merge($data, ['team_id' => $this->teamId()]));
+
+        if ($request->hasFile('avatar')) {
+            $contact->addMediaFromRequest('avatar')->toMediaCollection('avatar');
+        }
 
         return back()->with('success', 'Kontakt angelegt.');
     }
@@ -53,9 +62,16 @@ class ContactController extends Controller
             'phone'    => 'nullable|string|max:50',
             'position' => 'nullable|string|max:100',
             'notes'    => 'nullable|string|max:2000',
+            'avatar'   => 'nullable|image|max:8192',
+            'user_id'  => 'nullable|exists:users,id',
         ]);
 
         $contact->update($data);
+
+        if ($request->hasFile('avatar')) {
+            $contact->clearMediaCollection('avatar');
+            $contact->addMediaFromRequest('avatar')->toMediaCollection('avatar');
+        }
 
         return back()->with('success', 'Kontakt aktualisiert.');
     }

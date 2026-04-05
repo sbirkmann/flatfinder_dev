@@ -6,69 +6,79 @@
                 <h4 class="font-bold">Hotspots bearbeiten: {{ point.name }}</h4>
                 <p class="text-xs text-gray-400">Doppelklick ins Bild, um einen neuen Hotspot zu setzen.</p>
             </div>
-            <button @click="save" class="bg-[#ab715c] hover:bg-[#8e5c4a] text-white px-4 py-2 rounded font-bold text-sm transition">
-                Speichern
-            </button>
+            <div class="flex items-center gap-2">
+                <button @click="setStartView" class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded font-bold text-sm transition flex items-center gap-2">
+                    <MapPinIcon class="w-4 h-4" />
+                    Startansicht festlegen
+                </button>
+                <button @click="save" class="bg-[#ab715c] hover:bg-[#8e5c4a] text-white px-4 py-2 rounded font-bold text-sm transition">
+                    Speichern
+                </button>
+            </div>
         </div>
 
-        <div class="flex-1 relative flex">
+        <div class="flex-1 flex overflow-hidden relative">
             <!-- 360 Viewer Container -->
-            <div ref="viewerContainer" class="flex-1 w-full h-full bg-black"></div>
+            <div ref="viewerContainer" class="flex-1 bg-black h-full transition-all"></div>
+
+            <!-- Toggle Button (Sidebar) -->
+            <button v-if="hotspots.length > 0" 
+                    @click="showSidebar = !showSidebar" 
+                    class="absolute top-4 right-4 z-30 bg-gray-900 border border-gray-700 text-white p-2 rounded-xl shadow-xl hover:bg-black transition-colors"
+                    :class="{'translate-x-[calc(-100%-1rem)]': !showSidebar}">
+                <ChevronRightIcon v-if="showSidebar" class="w-5 h-5" />
+                <ChevronLeftIcon v-else class="w-5 h-5" />
+            </button>
 
             <!-- Hotspots Sidebar -->
-            <div class="w-80 sm:w-full bg-gray-900 border-l border-gray-800 text-white flex flex-col absolute right-0 top-0 bottom-0 z-20 shadow-2xl transition-transform" 
-                 v-if="hotspots.length > 0">
-                <div class="px-4 py-3 border-b border-gray-800 flex justify-between items-center">
-                    <h5 class="font-bold text-sm">Gesetzte Hotspots</h5>
+            <div 
+                v-if="hotspots.length > 0 && showSidebar"
+                class="w-96 flex-shrink-0 bg-gray-900 border-l border-gray-800 text-white flex flex-col z-20 shadow-2xl transition-all animate-in slide-in-from-right-full" 
+            >
+                <div class="px-6 py-5 border-b border-gray-800 flex justify-between items-center bg-gray-950/50 backdrop-blur-md">
+                    <div>
+                        <h5 class="font-black text-sm uppercase tracking-widest text-brand-500">Gesetzte Hotspots</h5>
+                        <p class="text-[10px] font-bold text-gray-500 mt-0.5">{{ hotspots.length }} Elemente verknüpft</p>
+                    </div>
                 </div>
-                <div class="flex-1 overflow-y-auto p-4 space-y-4">
-                    <div v-for="(hs, i) in hotspots" :key="hs.id" class="bg-gray-800 rounded-lg p-4 relative border border-gray-700">
-                        <button @click="removeHotspot(i)" class="absolute top-2 right-2 text-gray-500 hover:text-red-500"><TrashIcon class="w-4 h-4"/></button>
+                <div class="flex-1 overflow-y-auto p-6 space-y-6">
+                    <div v-for="(hs, i) in hotspots" :key="hs.id" 
+                         class="bg-gray-800/40 rounded-2xl p-5 relative border border-gray-700/50 hover:border-brand-500/50 transition-all hover:bg-gray-800 shadow-lg">
+                        <button @click="removeHotspot(i)" class="absolute top-4 right-4 text-gray-500 hover:text-red-500 p-1.5 hover:bg-red-500/10 rounded-lg transition-colors"><TrashIcon class="w-4 h-4"/></button>
                         
-                        <div class="mb-3 pr-6">
-                            <label class="text-[10px] uppercase font-bold text-gray-500 block mb-1">Titel / Label</label>
-                            <input v-model="hs.label" type="text" class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white" @change="updateHotspotMarker(hs)"/>
+                        <div class="mb-5 pr-8">
+                            <label class="text-[10px] uppercase font-black tracking-widest text-gray-400 block mb-2 px-1">Titel / Label</label>
+                            <input v-model="hs.label" type="text" class="w-full bg-gray-950/50 border border-gray-700 rounded-xl px-4 py-2.5 text-xs text-white focus:ring-brand-500" @change="updateHotspotMarker(hs)"/>
                         </div>
 
-                        <div class="mb-3">
-                            <label class="text-[10px] uppercase font-bold text-gray-500 block mb-1">Verlinken mit</label>
-                            <select v-model="hs.link_type" class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white">
+                        <div class="mb-5">
+                            <label class="text-[10px] uppercase font-black tracking-widest text-gray-400 block mb-2 px-1">Verlinken mit</label>
+                            <select v-model="hs.link_type" class="w-full bg-gray-950/50 border border-gray-700 rounded-xl px-4 py-2.5 text-xs text-white focus:ring-brand-500">
                                 <option value="none">-- Ohne --</option>
-                                <option value="point">Anderer Punkt (Tour)</option>
+                                <option value="point">Anderer Punkt</option>
                                 <option value="apartment">Wohnung</option>
                                 <option value="house">Haus</option>
                                 <option value="slider">Slider / Popup</option>
-                                <option value="tooltip">Info Tooltip (Content)</option>
-                                <option value="video">Externe Video URL (Youtube/Streamable)</option>
+                                <option value="tooltip">Info Tooltip</option>
+                                <option value="video">Externes Video</option>
                             </select>
                         </div>
                         
-                        <div class="mb-3">
-                            <label class="text-[10px] uppercase font-bold text-gray-500 block mb-1">Darstellung (Style)</label>
-                            <select v-model="hs.style_type" @change="updateHotspotMarker(hs)" class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white">
-                                <option value="text">Text-Label (Standard)</option>
-                                <option value="icon_arrow">Pfeil nach Rechts</option>
-                                <option value="icon_arrow_up">Pfeil nach Oben</option>
+                        <div class="mb-5">
+                            <label class="text-[10px] uppercase font-black tracking-widest text-gray-400 block mb-2 px-1">Darstellung</label>
+                            <select v-model="hs.style_type" @change="updateHotspotMarker(hs)" class="w-full bg-gray-950/50 border border-gray-700 rounded-xl px-4 py-2.5 text-xs text-white focus:ring-brand-500">
+                                <option value="text">Text-Label</option>
+                                <option value="icon_arrow">Pfeil Rechts</option>
+                                <option value="icon_arrow_up">Pfeil Oben</option>
                                 <option value="icon_info">Info Icon (i)</option>
                                 <option value="icon_link">Link Icon</option>
-                                <option value="custom_svg">Eigenes SVG einfügen</option>
+                                <option value="custom_svg">SVG Code</option>
                             </select>
                         </div>
 
-                        <div class="mb-3" v-if="hs.style_type !== 'custom_svg'">
-                            <label class="text-[10px] uppercase font-bold text-gray-500 block mb-1">Farbe</label>
-                            <input type="color" v-model="hs.color" @change="updateHotspotMarker(hs)" class="w-full bg-gray-900 border border-gray-700 rounded h-6" />
-                        </div>
-                        <div class="mb-3" v-if="hs.style_type === 'custom_svg'">
-                            <label class="text-[10px] uppercase font-bold text-gray-500 block mb-1">Eigenes SVG-Code</label>
-                            <textarea v-model="hs.custom_svg" @change="updateHotspotMarker(hs)" rows="3" class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white font-mono"></textarea>
-                        </div>
-
-                        <!-- Conditional fields based on link_type -->
-                        <div v-if="hs.link_type === 'point'" class="mb-2">
-                            <label class="text-[10px] uppercase font-bold text-gray-500 block mb-1">Ziel-Punkt</label>
-                            <select v-model="hs.target_point_id" class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white">
-                                <option :value="null">-- Wählen --</option>
+                        <div v-if="hs.link_type === 'point'" class="mb-2 animate-in fade-in duration-300">
+                            <label class="text-[10px] uppercase font-black tracking-widest text-gray-400 block mb-2 px-1">Ziel-Punkt</label>
+                            <select v-model="hs.target_point_id" class="w-full bg-gray-950/50 border border-gray-700 rounded-xl px-4 py-2.5 text-xs text-white focus:ring-brand-500">
                                 <template v-for="t in project.virtual_tours" :key="t.id">
                                     <optgroup :label="t.name">
                                         <option v-for="p in t.points" :key="p.id" :value="p.id">{{ p.name }}</option>
@@ -76,39 +86,52 @@
                                 </template>
                             </select>
                         </div>
-
-                        <div v-if="hs.link_type === 'apartment'" class="mb-2">
-                            <label class="text-[10px] uppercase font-bold text-gray-500 block mb-1">Wohnung wählen</label>
-                            <select v-model="hs.apartment_id" class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white">
+                        <div v-if="hs.link_type === 'apartment'" class="mb-5 animate-in fade-in duration-300">
+                            <label class="text-[10px] uppercase font-black tracking-widest text-gray-400 block mb-2 px-1">Wohnung wählen</label>
+                            <select v-model="hs.apartment_id" class="w-full bg-gray-950/50 border border-gray-700 rounded-xl px-4 py-2.5 text-xs text-white focus:ring-brand-500">
                                 <option :value="null">-- Wählen --</option>
                                 <option v-for="a in project.apartments" :key="a.id" :value="a.id">{{ a.name }}</option>
                             </select>
                         </div>
 
-                        <div v-if="hs.link_type === 'house'" class="mb-2">
-                            <label class="text-[10px] uppercase font-bold text-gray-500 block mb-1">Haus wählen</label>
-                            <select v-model="hs.house_id" class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white">
+                        <div v-if="hs.link_type === 'house'" class="mb-5 animate-in fade-in duration-300">
+                            <label class="text-[10px] uppercase font-black tracking-widest text-gray-400 block mb-2 px-1">Haus wählen</label>
+                            <select v-model="hs.house_id" class="w-full bg-gray-950/50 border border-gray-700 rounded-xl px-4 py-2.5 text-xs text-white focus:ring-brand-500">
                                 <option :value="null">-- Wählen --</option>
                                 <option v-for="h in project.houses" :key="h.id" :value="h.id">{{ h.name }}</option>
                             </select>
                         </div>
 
-                        <div v-if="hs.link_type === 'slider'" class="mb-2">
-                            <label class="text-[10px] uppercase font-bold text-gray-500 block mb-1">Slider wählen</label>
-                            <select v-model="hs.slider_id" class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white">
+                        <div v-if="hs.link_type === 'slider'" class="mb-5 animate-in fade-in duration-300">
+                            <label class="text-[10px] uppercase font-black tracking-widest text-gray-400 block mb-2 px-1">Slider wählen</label>
+                            <select v-model="hs.slider_id" class="w-full bg-gray-950/50 border border-gray-700 rounded-xl px-4 py-2.5 text-xs text-white focus:ring-brand-500">
                                 <option :value="null">-- Wählen --</option>
                                 <option v-for="s in project.sliders" :key="s.id" :value="s.id">{{ s.name }}</option>
                             </select>
                         </div>
 
-                        <div v-if="hs.link_type === 'tooltip'" class="mb-2">
-                            <label class="text-[10px] uppercase font-bold text-gray-500 block mb-1">Info Tooltip Text</label>
-                            <textarea v-model="hs.tooltip_text" rows="3" class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white"></textarea>
+                        <div v-if="hs.link_type === 'tooltip'" class="mb-5 animate-in fade-in duration-300">
+                            <label class="text-[10px] uppercase font-black tracking-widest text-gray-400 block mb-2 px-1">Info Tooltip Text</label>
+                            <textarea v-model="hs.tooltip_text" rows="3" class="w-full bg-gray-950/50 border border-gray-700 rounded-xl px-4 py-2.5 text-xs text-white focus:ring-brand-500"></textarea>
                         </div>
 
-                        <div v-if="hs.link_type === 'video' || hs.link_type === 'url'" class="mb-2">
-                            <label class="text-[10px] uppercase font-bold text-gray-500 block mb-1">Video Link (Embed URL) / Web URL</label>
-                            <input type="text" v-model="hs.target_url" class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white" placeholder="z.B. https://www.youtube.com/embed/..." />
+                        <div v-if="hs.link_type === 'video'" class="mb-5 animate-in fade-in duration-300">
+                            <label class="text-[10px] uppercase font-black tracking-widest text-gray-400 block mb-2 px-1">Externes Video (Embed URL)</label>
+                            <input type="text" v-model="hs.target_url" class="w-full bg-gray-950/50 border border-gray-700 rounded-xl px-4 py-2.5 text-xs text-white focus:ring-brand-500" placeholder="https://..." />
+                        </div>
+
+                        <div v-if="hs.style_type === 'custom_svg'" class="mb-5 animate-in fade-in duration-300">
+                            <label class="text-[10px] uppercase font-black tracking-widest text-gray-400 block mb-2 px-1">Eigenes SVG-Code</label>
+                            <textarea v-model="hs.custom_svg" @change="updateHotspotMarker(hs)" rows="3" class="w-full bg-gray-950/50 border border-gray-700 rounded-xl px-4 py-2.5 text-xs text-white font-mono focus:ring-brand-500"></textarea>
+                        </div>
+
+                        <!-- Color for simple points -->
+                        <div v-if="hs.style_type !== 'custom_svg'" class="mt-4 pt-4 border-t border-gray-700/50 flex items-center justify-between">
+                            <span class="text-[10px] uppercase font-black tracking-widest text-gray-400 px-1">Markierfarbe</span>
+                            <div class="flex items-center gap-2">
+                                <input type="color" v-model="hs.color" @change="updateHotspotMarker(hs)" class="w-12 bg-transparent border-none p-0 h-6 cursor-pointer" />
+                                <span class="text-[10px] font-mono text-gray-500">{{ hs.color }}</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -118,12 +141,12 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue';
+import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
 import { Viewer } from '@photo-sphere-viewer/core';
 import { MarkersPlugin } from '@photo-sphere-viewer/markers-plugin';
 import '@photo-sphere-viewer/core/index.css';
 import '@photo-sphere-viewer/markers-plugin/index.css';
-import { TrashIcon } from '@heroicons/vue/24/outline';
+import { TrashIcon, ChevronRightIcon, ChevronLeftIcon, MapPinIcon } from '@heroicons/vue/24/outline';
 
 const props = defineProps(['point', 'project']);
 const emit = defineEmits(['save']);
@@ -131,15 +154,54 @@ const emit = defineEmits(['save']);
 const viewerContainer = ref(null);
 let viewer = null;
 let markersPlugin = null;
+const showSidebar = ref(true);
 
 const hotspots = ref(JSON.parse(JSON.stringify(props.point.hotspots || [])));
+const initialYaw = ref(props.point.initial_yaw);
+const initialPitch = ref(props.point.initial_pitch);
+const initialFov = ref(props.point.initial_fov);
 
 const save = () => {
-    emit('save', hotspots.value);
+    emit('save', {
+        hotspots: hotspots.value,
+        initial_yaw: initialYaw.value,
+        initial_pitch: initialPitch.value,
+        initial_fov: initialFov.value
+    });
 };
 
+const setStartView = () => {
+    if (!viewer) return;
+    const pos = viewer.getPosition();
+    const zoom = viewer.getZoomLevel(); // This is roughly FOV related in Photo Sphere Viewer
+    
+    initialYaw.value = pos.yaw;
+    initialPitch.value = pos.pitch;
+    initialFov.value = zoom;
+    
+    alert('Startansicht für diesen Punkt wurde temporär gesetzt. Bitte klicke auf "Speichern" um die Änderungen permanent zu übernehmen.');
+};
+
+// Auto-resize viewer when sidebar toggles
+watch(showSidebar, () => {
+    nextTick(() => {
+        if (viewer) viewer.autoSize();
+    });
+});
+
+// Also watch hotspots length to show sidebar if it was hidden
+watch(() => hotspots.value.length, (newLen) => {
+    if (newLen > 0) showSidebar.value = true;
+    nextTick(() => {
+        if (viewer) viewer.autoSize();
+    });
+});
+
 onMounted(() => {
-    initViewer();
+    // Wait for modal transitions to finish and DOM to stabilize
+    setTimeout(() => {
+        initViewer();
+    }, 150);
 });
 
 onBeforeUnmount(() => {
@@ -158,6 +220,12 @@ const initViewer = () => {
         // Fallback
     }
 
+    // Ensure container has dimensions
+    if (viewerContainer.value.clientWidth === 0 || viewerContainer.value.clientHeight === 0) {
+        setTimeout(initViewer, 100);
+        return;
+    }
+
     viewer = new Viewer({
         container: viewerContainer.value,
         panorama: panoramaUrl,
@@ -166,7 +234,10 @@ const initViewer = () => {
             [MarkersPlugin, {
                 markers: buildMarkersFromHotspots()
             }]
-        ]
+        ],
+        defaultYaw: props.point.initial_yaw || 0,
+        defaultPitch: props.point.initial_pitch || 0,
+        defaultZoomLvl: props.point.initial_fov || 0,
     });
 
     markersPlugin = viewer.getPlugin(MarkersPlugin);

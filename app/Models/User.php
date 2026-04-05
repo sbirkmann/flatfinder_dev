@@ -68,4 +68,14 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+    public function projects(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(Project::class)->withPivot('role')->withTimestamps();
+    }
+
+    public function contact(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(Contact::class);
+    }
 }

@@ -14,20 +14,23 @@ import {
 
 const props = defineProps({
     contacts: Array,
+    users: Array,
 });
 
 // --- Create ---
 const showCreate = ref(false);
-const createForm = useForm({ name: '', email: '', phone: '', position: '', notes: '' });
+const createForm = useForm({ name: '', email: '', phone: '', position: '', notes: '', avatar: null, user_id: null });
 const submitCreate = () => {
     createForm.post(route('contacts.store'), {
+        forceFormData: true,
+        preserveScroll: true,
         onSuccess: () => { createForm.reset(); showCreate.value = false; },
     });
 };
 
 // --- Edit ---
 const editContact = ref(null);
-const editForm = useForm({ name: '', email: '', phone: '', position: '', notes: '' });
+const editForm = useForm({ name: '', email: '', phone: '', position: '', notes: '', avatar: null, user_id: null, _method: 'put' });
 const openEdit = (c) => {
     editContact.value = c;
     editForm.name     = c.name;
@@ -35,9 +38,13 @@ const openEdit = (c) => {
     editForm.phone    = c.phone || '';
     editForm.position = c.position || '';
     editForm.notes    = c.notes || '';
+    editForm.user_id  = c.user_id || null;
+    editForm.avatar   = null;
 };
 const submitEdit = () => {
-    editForm.put(route('contacts.update', editContact.value.id), {
+    editForm.post(route('contacts.update', editContact.value.id), {
+        forceFormData: true,
+        preserveScroll: true,
         onSuccess: () => { editContact.value = null; },
     });
 };
@@ -97,9 +104,22 @@ const confirmDelete = (id) => {
                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-brand-500 focus:border-brand-500" />
                         </div>
                         <div class="sm:col-span-2">
+                            <label class="block text-xs font-bold text-gray-500 mb-1">Zugeordneter Login-Nutzer (optional)</label>
+                            <select v-model="createForm.user_id" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-brand-500 focus:border-brand-500">
+                                <option :value="null">-- Kein Nutzer --</option>
+                                <option v-for="u in users" :key="u.id" :value="u.id">{{ u.name }} ({{ u.email }})</option>
+                            </select>
+                            <p class="text-[10px] text-gray-400 mt-1">Wenn zugeordnet, sieht dieser Nutzer im Dashboard die Anfragen, die direkt an diesen Kontakt gerichtet sind.</p>
+                        </div>
+                        <div class="sm:col-span-2">
                             <label class="block text-xs font-bold text-gray-500 mb-1">Notizen</label>
                             <textarea v-model="createForm.notes" rows="2" placeholder="Interne Notizen..."
                                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-brand-500 focus:border-brand-500"></textarea>
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="block text-xs font-bold text-gray-500 mb-1">Avatar Bild</label>
+                            <input type="file" @change="e => createForm.avatar = e.target.files[0]" accept="image/*"
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-500 file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-bold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100" />
                         </div>
                         <div class="sm:col-span-2 flex gap-3 justify-end">
                             <button type="button" @click="showCreate = false"
@@ -126,6 +146,7 @@ const confirmDelete = (id) => {
                             <th class="px-5 py-3 text-left text-xs font-bold text-gray-500 uppercase">Name</th>
                             <th class="px-5 py-3 text-left text-xs font-bold text-gray-500 uppercase">Position</th>
                             <th class="px-5 py-3 text-left text-xs font-bold text-gray-500 uppercase">Kontakt</th>
+                            <th class="px-5 py-3 text-left text-xs font-bold text-gray-500 uppercase">Verknüpfter Nutzer</th>
                             <th class="px-5 py-3 text-left text-xs font-bold text-gray-500 uppercase">Projekte</th>
                             <th class="px-5 py-3 text-right text-xs font-bold text-gray-500 uppercase">Aktionen</th>
                         </tr>
@@ -134,7 +155,10 @@ const confirmDelete = (id) => {
                         <tr v-for="c in contacts" :key="c.id" class="hover:bg-gray-50 transition">
                             <td class="px-5 py-4">
                                 <div class="flex items-center gap-3">
-                                    <div class="w-9 h-9 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 font-black text-sm shrink-0">
+                                    <img v-if="c.media && c.media.find(m => m.collection_name === 'avatar' || m.collection_name === 'default')" 
+                                         :src="c.media.find(m => m.collection_name === 'avatar' || m.collection_name === 'default').original_url" 
+                                         class="w-9 h-9 rounded-full object-cover bg-gray-200 border border-gray-300 shrink-0" />
+                                    <div v-else class="w-9 h-9 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 font-black text-sm shrink-0">
                                         {{ c.name.charAt(0).toUpperCase() }}
                                     </div>
                                     <span class="font-bold text-gray-900 text-sm">{{ c.name }}</span>
@@ -150,6 +174,12 @@ const confirmDelete = (id) => {
                                         <PhoneIcon class="w-3.5 h-3.5" /> {{ c.phone }}
                                     </a>
                                 </div>
+                            </td>
+                            <td class="px-5 py-4 text-sm">
+                                <span v-if="c.user" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-brand-50 text-brand-700">
+                                    <UserIcon class="w-3 h-3 mr-1" /> {{ c.user.name }}
+                                </span>
+                                <span v-else class="text-gray-400 text-xs italic">Ohne Login</span>
                             </td>
                             <td class="px-5 py-4">
                                 <span class="text-xs font-bold bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
@@ -206,9 +236,21 @@ const confirmDelete = (id) => {
                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-brand-500 focus:border-brand-500" />
                         </div>
                         <div class="sm:col-span-2">
+                            <label class="block text-xs font-bold text-gray-500 mb-1">Zugeordneter Login-Nutzer (optional)</label>
+                            <select v-model="editForm.user_id" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-brand-500 focus:border-brand-500">
+                                <option :value="null">-- Kein Nutzer --</option>
+                                <option v-for="u in users" :key="u.id" :value="u.id">{{ u.name }} ({{ u.email }})</option>
+                            </select>
+                        </div>
+                        <div class="sm:col-span-2">
                             <label class="block text-xs font-bold text-gray-500 mb-1">Notizen</label>
                             <textarea v-model="editForm.notes" rows="2"
                                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-brand-500 focus:border-brand-500"></textarea>
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="block text-xs font-bold text-gray-500 mb-1">Avatar Bild ersetzen</label>
+                            <input type="file" @change="e => editForm.avatar = e.target.files[0]" accept="image/*"
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-500 file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-bold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100" />
                         </div>
                         <div class="sm:col-span-2 flex gap-3 justify-end">
                             <button type="button" @click="editContact = null"

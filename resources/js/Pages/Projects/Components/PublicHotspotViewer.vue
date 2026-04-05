@@ -63,8 +63,9 @@ const initViewer = () => {
     viewer = new Viewer({
         container: viewerContainer.value,
         panorama: panoramaUrl,
-        defaultYaw: props.point.initialYaw || 0,
-        defaultPitch: props.point.initialPitch || 0,
+        defaultYaw: props.point.initialYaw ?? props.point.initial_yaw ?? 0,
+        defaultPitch: props.point.initialPitch ?? props.point.initial_pitch ?? 0,
+        defaultZoomLvl: props.point.initial_fov ?? 0,
         navbar: ['zoom', 'fullscreen'],
         plugins: [
             [MarkersPlugin, {

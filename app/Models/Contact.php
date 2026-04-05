@@ -25,4 +25,16 @@ class Contact extends Model implements HasMedia
             ->withPivot('notify_on_inquiry', 'sort_order')
             ->withTimestamps();
     }
+
+    public function apartments(): BelongsToMany
+    {
+        return $this->belongsToMany(Apartment::class, 'apartment_contact')
+            ->withPivot('notify_on_inquiry', 'sort_order')
+            ->withTimestamps();
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
 }

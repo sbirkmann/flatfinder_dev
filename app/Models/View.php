@@ -18,7 +18,7 @@ class View extends Model
 
     public function layers(): BelongsToMany
     {
-        return $this->belongsToMany(Layer::class);
+        return $this->belongsToMany(Layer::class)->orderBy('layers.sort_order');
     }
 
     public function frames(): HasMany
