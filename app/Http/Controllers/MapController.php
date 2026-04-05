@@ -290,6 +290,7 @@ class MapController extends Controller
                 $queryStr = implode("\n", $queryParts);
                 $overpassQuery = "[out:json][timeout:45];({$queryStr});out center;";
 
+
                 try {
                     $opRes = Http::asForm()->post('https://overpass-api.de/api/interpreter', [
                         'data' => $overpassQuery
