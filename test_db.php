@@ -1,8 +1,3 @@
 <?php
-require __DIR__.'/vendor/autoload.php';
-$app = require_once __DIR__.'/bootstrap/app.php';
-$kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
-$kernel->bootstrap();
-
-$frames = \App\Models\Frame::orderBy('id', 'desc')->take(5)->get(['id', 'view_id', 'polygons']);
-print_r($frames->toArray());
+$lines = file(__DIR__.'/storage/logs/laravel.log');
+print_r(array_slice($lines, -50));

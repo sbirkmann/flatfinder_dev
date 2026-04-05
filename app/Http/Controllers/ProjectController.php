@@ -283,8 +283,7 @@ class ProjectController extends Controller
 
         $modelClass = '\\App\\Models\\' . $validated['model'];
         if (class_exists($modelClass)) {
-            $data = $validated['payload'];
-            \Illuminate\Support\Facades\Log::info('ProjectController@storeRelation incoming data:', ['data' => $data, 'id' => $request->id, 'model' => $validated['model']]);
+            $data = $request->input('payload'); // Bypasses the strict `exclude_unvalidated_array_keys` which strips 'polygons' and 'points'
             if (in_array('project_id', app($modelClass)->getFillable())) {
                 $data['project_id'] = $project->id;
             }
