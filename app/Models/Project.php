@@ -81,6 +81,11 @@ class Project extends Model implements HasMedia
         return $this->hasMany(Apartment::class);
     }
 
+    public function configurators(): HasMany
+    {
+        return $this->hasMany(ApartmentConfigurator::class);
+    }
+
     public function features(): HasMany
     {
         return $this->hasMany(Feature::class);
