@@ -1128,6 +1128,11 @@ const currentApartmentExpose = computed(() => {
     return currentApartment.value.media.find(m => m.collection_name === 'expose') || null;
 });
 
+const currentApartmentArModel = computed(() => {
+    if (!currentApartment.value || !currentApartment.value.media) return null;
+    return currentApartment.value.media.find(m => m.collection_name === 'ar_model') || null;
+});
+
 // Frames logic
 const viewFramesModal = ref(null);
 const activeViewId = ref(null);
@@ -2556,6 +2561,23 @@ const startOptimization = async () => {
                                             <button @click="deleteMedia(currentApartmentExpose.id)" class="text-red-600 text-xs hover:underline flex-shrink-0">Löschen</button>
                                         </div>
                                         <input type="file" accept="application/pdf" @change="e => uploadMedia(e, 'apartment', currentApartment.id, 'expose')" class="text-sm block w-full text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- AR Model (.glb) -->
+                            <div class="mb-8 bg-white p-4 rounded border">
+                                <h6 class="font-bold mb-2">AR-Modell (3D / .glb)</h6>
+                                <div class="flex items-start gap-4">
+                                    <div class="flex-1">
+                                        <p class="text-xs text-gray-500 mb-2">Hier kannst du ein 3D-Modell (.glb Format) hochladen, welches sich User in ihrem Raum via Augmented Reality (AR) ansehen können.</p>
+                                        <div v-if="currentApartmentArModel" class="flex gap-4 items-center bg-gray-50 p-2 border rounded max-w-lg mb-2">
+                                            <span class="text-gray-600 font-medium text-sm truncate flex-1">
+                                                {{ currentApartmentArModel.file_name }} ({{ (currentApartmentArModel.size / 1024 / 1024).toFixed(2) }} MB)
+                                            </span>
+                                            <button @click="deleteMedia(currentApartmentArModel.id)" class="text-red-600 text-xs hover:underline flex-shrink-0">Löschen</button>
+                                        </div>
+                                        <input type="file" accept=".glb" @change="e => uploadMedia(e, 'apartment', currentApartment.id, 'ar_model')" class="text-sm block w-full text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200" />
                                     </div>
                                 </div>
                             </div>

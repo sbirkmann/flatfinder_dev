@@ -528,18 +528,15 @@ const onImgLoad = (e) => {
     resetZoom();
 };
 
-const tiltX = ref(0);
-const tiltY = ref(0);
-
 const wrapperStyle = computed(() => {
     const totalScale = imgBaseScale.value * zoomLevel.value;
     return {
         width: `${naturalW.value}px`,
         height: `${naturalH.value}px`,
-        transform: `translate(-50%, -50%) perspective(1500px) translate(${translateX.value}px, ${translateY.value}px) scale(${totalScale}) rotateX(${tiltX.value}deg) rotateY(${tiltY.value}deg)`,
+        transform: `translate(-50%, -50%) translate(${translateX.value}px, ${translateY.value}px) scale(${totalScale})`,
         left: '50%',
         top: '50%',
-        transition: (tiltX.value === 0 && tiltY.value === 0) ? 'transform 0.4s ease-out' : 'none'
+        transition: 'transform 0.4s ease-out'
     };
 });
 
@@ -607,17 +604,6 @@ const onMouseDown = (e) => {
 };
 
 const onMouseMove = (e) => {
-    // 3D Tilt Effect on mouse move
-    if (containerRef.value && !isDragging.value && !drawMode.value && draggedPolyId.value === null && draggedPointId.value === null && draggedPointIndex.value === null) {
-        const rect = containerRef.value.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        tiltX.value = ((y / rect.height) - 0.5) * -12; // max rotation degrees
-        tiltY.value = ((x / rect.width) - 0.5) * 12;
-    } else {
-        tiltX.value = 0;
-        tiltY.value = 0;
-    }
 
     // 1. Polygon Point Dragging
     if (draggedPointIndex.value !== null && selectedPolygon.value) {
@@ -657,8 +643,6 @@ const onMouseMove = (e) => {
 };
 
 const onMouseUp = () => {
-    tiltX.value = 0;
-    tiltY.value = 0;
     isDragging.value = false;
     draggedPointIndex.value = null;
     if (draggedPolyId.value || draggedPointId.value) {

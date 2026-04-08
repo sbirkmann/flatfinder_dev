@@ -91,7 +91,7 @@ class ProjectController extends Controller
             'views.layers',
             'views.frames.media',
             'houses',
-            'floors',
+            'floors.media',
             'apartments.features',
             'apartments.bestView',
             'apartments.bestFrame',

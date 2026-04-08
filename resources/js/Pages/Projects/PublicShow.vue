@@ -38,10 +38,16 @@ const toggleImmersiveMode = () => {
 };
 
 const showArViewer = ref(false);
-const arModelSrc = ref('/test.glb');
+const arModelSrc = ref('');
 const showConfigurator = ref(false);
 
+const apartmentArModel = computed(() => {
+    return activeApartment.value?.media?.find(m => m.collection_name === 'ar_model') || null;
+});
+
 const openArViewer = () => {
+    if (!apartmentArModel.value) return;
+    arModelSrc.value = apartmentArModel.value.original_url;
     showArViewer.value = true;
     if (typeof window !== 'undefined' && !document.getElementById('model-viewer-script')) {
         const script = document.createElement('script');
@@ -2028,8 +2034,8 @@ const sqmModel = computed({
                         </div>
 
                         <!-- Image Groups List (Grundriss, Kurzbaubeschrieb, etc) -->
-                        <div v-if="activeApartment.imageGroups?.length" class="space-y-2.5">
-                            <button v-for="group in activeApartment.imageGroups" :key="group.id" @click="openImageGroup(group)"
+                        <div v-if="activeApartment.image_groups?.length" class="space-y-2.5">
+                            <button v-for="group in activeApartment.image_groups" :key="group.id" @click="openImageGroup(group)"
                                     class="w-full flex items-center justify-between p-3.5 border border-gray-200 rounded-[12px] bg-white hover:bg-gray-50 transition shadow-[0_2px_4px_rgba(0,0,0,0.02)]">
                                 <div class="flex items-center gap-3">
                                     <svg class="w-5 h-5 text-[#ab715c]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
@@ -2118,7 +2124,7 @@ const sqmModel = computed({
                         </div>
 
                         <!-- AR Viewer -->
-                        <div class="bg-gradient-to-br from-[#1c1c1e] to-[#2c2c2e] rounded-[16px] p-5 shadow-[0_4px_20px_rgba(0,0,0,0.15)] text-white flex items-center justify-between cursor-pointer group hover:from-[#2c2c2e] hover:to-[#3c3c3e] transition-all" @click="openArViewer">
+                        <div v-if="apartmentArModel" class="bg-gradient-to-br from-[#1c1c1e] to-[#2c2c2e] rounded-[16px] p-5 shadow-[0_4px_20px_rgba(0,0,0,0.15)] text-white flex items-center justify-between cursor-pointer group hover:from-[#2c2c2e] hover:to-[#3c3c3e] transition-all" @click="openArViewer">
                             <div>
                                 <h4 class="text-[14px] font-black tracking-widest uppercase mb-1">In AR ansehen</h4>
                                 <p class="text-[11px] text-gray-400 font-medium">Projiziere das Modell in deinen Raum</p>
