@@ -1970,7 +1970,32 @@ const sqmModel = computed({
                             </button>
                         </div>
                         
-                        <!-- Exposé Button -->
+                        
+
+                        <!-- 3D-Rundgang Box -->
+                        <div v-if="activeApartment.virtual_tour_url" 
+                             class="w-full border border-gray-200 rounded-[16px] bg-white overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.04)] group">
+                            <!-- Preview Image -->
+                            <div class="w-full h-[180px] overflow-hidden">
+                                <img v-if="activeApartment.media?.length" 
+                                     :src="activeApartment.media[0].original_url" 
+                                     class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+                                     alt="3D-Rundgang Vorschau" />
+                                <div v-else class="w-full h-full bg-gray-100 flex items-center justify-center">
+                                    <svg class="w-10 h-10 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2-1m2 1l-2 1m2-1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5" /></svg>
+                                </div>
+                            </div>
+                            <!-- Link Row -->
+                            <button @click="showTourPopup = true"
+                                    class="w-full flex items-center justify-between px-4 py-3.5 hover:bg-gray-50 transition">
+                                <div class="flex items-center gap-3">
+                                    <svg class="w-5 h-5 text-[#ab715c] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2-1m2 1l-2 1m2-1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5" /></svg>
+                                    <span class="text-[14px] font-bold text-gray-800">3D-Rundgang ähnliche Wohnung</span>
+                                </div>
+                                <svg class="w-5 h-5 text-gray-400 group-hover:text-[#ab715c] group-hover:translate-x-0.5 transition-all shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
+                            </button>
+                        </div>
+<!-- Exposé Button -->
                         <div v-if="apartmentPdf" class="mt-2">
                             <button @click="activeIframe = apartmentPdf.original_url; track('expose_download', { apartment: activeApartment });" class="group w-full flex items-center justify-between p-3.5 border border-gray-200 rounded-[12px] bg-white hover:bg-gray-50 transition shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
                                 <div class="flex items-center gap-3 text-left">
@@ -2008,31 +2033,6 @@ const sqmModel = computed({
                                 <svg class="w-5 h-5 text-gray-400 group-hover:text-[#ab715c] group-hover:translate-x-0.5 transition-all shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
                             </button>
                         </div>
-
-                        <!-- 3D-Rundgang Box -->
-                        <div v-if="activeApartment.virtual_tour_url" 
-                             class="w-full border border-gray-200 rounded-[16px] bg-white overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.04)] group">
-                            <!-- Preview Image -->
-                            <div class="w-full h-[180px] overflow-hidden">
-                                <img v-if="activeApartment.media?.length" 
-                                     :src="activeApartment.media[0].original_url" 
-                                     class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
-                                     alt="3D-Rundgang Vorschau" />
-                                <div v-else class="w-full h-full bg-gray-100 flex items-center justify-center">
-                                    <svg class="w-10 h-10 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2-1m2 1l-2 1m2-1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5" /></svg>
-                                </div>
-                            </div>
-                            <!-- Link Row -->
-                            <button @click="showTourPopup = true"
-                                    class="w-full flex items-center justify-between px-4 py-3.5 hover:bg-gray-50 transition">
-                                <div class="flex items-center gap-3">
-                                    <svg class="w-5 h-5 text-[#ab715c] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2-1m2 1l-2 1m2-1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5" /></svg>
-                                    <span class="text-[14px] font-bold text-gray-800">3D-Rundgang ähnliche Wohnung</span>
-                                </div>
-                                <svg class="w-5 h-5 text-gray-400 group-hover:text-[#ab715c] group-hover:translate-x-0.5 transition-all shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
-                            </button>
-                        </div>
-
                         <!-- Image Groups List (Grundriss, Kurzbaubeschrieb, etc) -->
                         <div v-if="activeApartment.image_groups?.length" class="space-y-2.5">
                             <button v-for="group in activeApartment.image_groups" :key="group.id" @click="openImageGroup(group)"
